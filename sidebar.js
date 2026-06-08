@@ -351,14 +351,33 @@ function showFormNovaEmpresaInline(nomeInicial, token) {
 }
 
 async function handleSaveNovaPessoa(token) {
-  const nome = document.getElementById('pes-nome').value.trim();
-  const apelido = document.getElementById('pes-apelido').value.trim();
-  const cargo = document.getElementById('pes-cargo').value;
-  const emailEl = document.getElementById('pes-email');
-  const telemovelEl = document.getElementById('pes-telemovel');
-  const email = emailEl ? emailEl.value.trim() : '';
-  const telemovel = telemovelEl ? telemovelEl.value.trim() : '';
+  // Lê TODOS os valores do DOM ANTES de qualquer showLoading()
+  const nome = (document.getElementById('pes-nome') || {value:''}).value.trim();
+  const apelido = (document.getElementById('pes-apelido') || {value:''}).value.trim();
+  const cargo = (document.getElementById('pes-cargo') || {value:''}).value;
+  const email = (document.getElementById('pes-email') || {value:''}).value.trim();
+  const telemovel = (document.getElementById('pes-telemovel') || {value:''}).value.trim();
+  const funcao = (document.getElementById('pes-funcao') || {value:''}).value.trim();
 
+  // Lê dados da empresa inline ANTES de showLoading()
+  const formInline = document.getElementById('form-nova-empresa-inline');
+  const inlineVisivel = formInline && formInline.style.display !== 'none' && formInline.innerHTML !== '';
+
+  let empDados = null;
+  if (inlineVisivel) {
+    empDados = {
+      nome: (document.getElementById('emp-nome') || {value:''}).value.trim(),
+      localizacao: (document.getElementById('emp-localizacao') || {value:''}).value.trim(),
+      setor: (document.getElementById('emp-setor') || {value:''}).value,
+      plano: (document.getElementById('emp-plano') || {value:''}).value,
+      data_inicio: (document.getElementById('emp-data-inicio') || {value:''}).value,
+      email: (document.getElementById('emp-email') || {value:''}).value.trim(),
+      telefone: (document.getElementById('emp-telefone') || {value:''}).value.trim(),
+      notas: (document.getElementById('emp-notas') || {value:''}).value.trim()
+    };
+  }
+
+  // Validações
   if (!nome || !apelido || !cargo) {
     if (!nome) showFieldError('pes-nome', 'Obrigatório');
     if (!apelido) showFieldError('pes-apelido', 'Obrigatório');
@@ -367,56 +386,50 @@ async function handleSaveNovaPessoa(token) {
   }
 
   if (!email && !telemovel) {
-    showError('Preenche pelo menos o email ou o telemóvel.');
+    showFieldError('pes-email', 'Preenche email ou telemóvel');
     return;
   }
-
-  const formInline = document.getElementById('form-nova-empresa-inline');
-  const inlineVisivel = formInline && formInline.style.display !== 'none' && formInline.innerHTML !== '';
 
   if (!currentEmpresa && !inlineVisivel) {
     showFieldError('search-empresa', 'Seleciona ou cria uma empresa.');
     return;
   }
 
+  if (inlineVisivel && empDados && (!empDados.nome || !empDados.localizacao || !empDados.setor)) {
+    if (!empDados.nome) showFieldError('emp-nome', 'Obrigatório');
+    if (!empDados.localizacao) showFieldError('emp-localizacao', 'Obrigatório');
+    if (!empDados.setor) showFieldError('emp-setor', 'Obrigatório');
+    return;
+  }
+
+  // Tudo validado — agora sim showLoading()
   showLoading();
 
-  if (inlineVisivel && !currentEmpresa) {
-    const empNome = document.getElementById('emp-nome').value.trim();
-    const empLocalizacao = document.getElementById('emp-localizacao').value.trim();
-    const empSetor = document.getElementById('emp-setor').value;
-
-    if (!empNome || !empLocalizacao || !empSetor) {
-      showError('Preenche os campos obrigatórios da empresa.');
-      return;
-    }
-
-    const planoEl = document.getElementById('emp-plano');
-    const plano = (empSetor === 'Restaurante' && planoEl) ? planoEl.value : '';
-    const dataInicioEl = document.getElementById('emp-data-inicio');
-    const data_inicio = (plano && plano !== 'Sem Avença' && dataInicioEl) ? dataInicioEl.value : '';
-
+  // Cria empresa se necessário
+  if (inlineVisivel && !currentEmpresa && empDados) {
+    const plano = empDados.setor === 'Restaurante' ? empDados.plano : '';
+    const data_inicio = (plano && plano !== 'Sem Avença') ? empDados.data_inicio : '';
     const empresa_id = await SheetsAPI.createEmpresa(token, {
-      nome: empNome,
-      localizacao: empLocalizacao,
-      setor: empSetor,
+      nome: empDados.nome,
+      localizacao: empDados.localizacao,
+      setor: empDados.setor,
       plano,
       data_inicio,
-      email: (document.getElementById('emp-email') || {value:''}).value.trim(),
-      telefone: (document.getElementById('emp-telefone') || {value:''}).value.trim(),
-      notas: (document.getElementById('emp-notas') || {value:''}).value.trim()
+      email: empDados.email,
+      telefone: empDados.telefone,
+      notas: empDados.notas
     });
-    currentEmpresa = { empresa_id, nome: empNome, localizacao: empLocalizacao, setor: empSetor, plano };
+    currentEmpresa = { empresa_id, nome: empDados.nome, localizacao: empDados.localizacao, setor: empDados.setor, plano };
     allEmpresas.push(currentEmpresa);
   }
 
-  const funcaoEl = document.getElementById('pes-funcao');
+  // Cria pessoa
   const pessoa_id = await SheetsAPI.createPessoa(token, {
     empresa_id: currentEmpresa.empresa_id,
     nome,
     apelido,
     cargo,
-    funcao: funcaoEl ? funcaoEl.value.trim() : '',
+    funcao,
     email,
     telemovel
   });
