@@ -12,7 +12,6 @@ let currentPessoa = null;
 document.addEventListener('DOMContentLoaded', async () => {
   t = TrelloPowerUp.iframe();
   currentCard = await t.card('id', 'name');
-
   await renderPanel();
 });
 
@@ -103,10 +102,9 @@ function showClientePanel(token) {
 // ---- FORMULÁRIO: EMPRESA ----
 
 async function showFormEmpresa(token) {
-  const panel = document.getElementById('crm-panel');
   showLoading();
-
   const empresas = await SheetsAPI.getEmpresas(token);
+  const panel = document.getElementById('crm-panel');
 
   panel.innerHTML = `
     <div class="section">
@@ -175,19 +173,16 @@ async function showFormEmpresa(token) {
     </div>
   `;
 
-  // Mostrar/ocultar form nova empresa
   document.getElementById('select-empresa').addEventListener('change', function() {
     document.getElementById('form-nova-empresa').style.display =
       this.value === 'nova' ? 'block' : 'none';
   });
 
-  // Mostrar/ocultar campos de restaurante
   document.getElementById('emp-setor').addEventListener('change', function() {
     document.getElementById('form-restaurante').style.display =
       this.value === 'Restaurante' ? 'block' : 'none';
   });
 
-  // Mostrar/ocultar data de início
   document.getElementById('emp-plano').addEventListener('change', function() {
     document.getElementById('form-data-inicio').style.display =
       this.value !== 'Sem Avença' ? 'block' : 'none';
@@ -219,15 +214,24 @@ async function handleNextEmpresa(token, empresas) {
       return;
     }
 
-    const plano = setor === 'Restaurante' ? document.getElementById('emp-plano').value : '';
-    const data_inicio = (plano && plano !== 'Sem Avença') ? document.getElementById('emp-data-inicio').value : '';
+    const planoEl = document.getElementById('emp-plano');
+    const plano = (setor === 'Restaurante' && planoEl) ? planoEl.value : '';
+    const dataInicioEl = document.getElementById('emp-data-inicio');
+    const data_inicio = (plano && plano !== 'Sem Avença' && dataInicioEl) ? dataInicioEl.value : '';
+    const emailEl = document.getElementById('emp-email');
+    const telefoneEl = document.getElementById('emp-telefone');
+    const notasEl = document.getElementById('emp-notas');
 
     showLoading();
     const empresa_id = await SheetsAPI.createEmpresa(token, {
-      nome, localizacao, setor, plano, data_inicio,
-      email: document.getElementById('emp-email').value.trim(),
-      telefone: document.getElementById('emp-telefone').value.trim(),
-      notas: document.getElementById('emp-notas').value.trim()
+      nome,
+      localizacao,
+      setor,
+      plano,
+      data_inicio,
+      email: emailEl ? emailEl.value.trim() : '',
+      telefone: telefoneEl ? telefoneEl.value.trim() : '',
+      notas: notasEl ? notasEl.value.trim() : ''
     });
     currentEmpresa = { empresa_id, nome, localizacao, setor, plano };
   } else {
@@ -240,10 +244,9 @@ async function handleNextEmpresa(token, empresas) {
 // ---- FORMULÁRIO: PESSOA ----
 
 async function showFormPessoa(token) {
-  const panel = document.getElementById('crm-panel');
   showLoading();
-
   const pessoas = await SheetsAPI.getPessoas(token, currentEmpresa.empresa_id);
+  const panel = document.getElementById('crm-panel');
 
   panel.innerHTML = `
     <div class="section">
@@ -332,8 +335,10 @@ async function handleSavePessoa(token, pessoas) {
     const nome = document.getElementById('pes-nome').value.trim();
     const apelido = document.getElementById('pes-apelido').value.trim();
     const cargo = document.getElementById('pes-cargo').value;
-    const email = document.getElementById('pes-email').value.trim();
-    const telemovel = document.getElementById('pes-telemovel').value.trim();
+    const emailEl = document.getElementById('pes-email');
+    const telemovelEl = document.getElementById('pes-telemovel');
+    const email = emailEl ? emailEl.value.trim() : '';
+    const telemovel = telemovelEl ? telemovelEl.value.trim() : '';
 
     if (!nome || !apelido || !cargo) {
       if (!nome) showFieldError('pes-nome', 'Obrigatório');
@@ -347,12 +352,16 @@ async function handleSavePessoa(token, pessoas) {
       return;
     }
 
+    const funcaoEl = document.getElementById('pes-funcao');
     showLoading();
     const pessoa_id = await SheetsAPI.createPessoa(token, {
       empresa_id: currentEmpresa.empresa_id,
-      nome, apelido, cargo,
-      funcao: document.getElementById('pes-funcao') ? document.getElementById('pes-funcao').value.trim() : '',
-      email, telemovel
+      nome,
+      apelido,
+      cargo,
+      funcao: funcaoEl ? funcaoEl.value.trim() : '',
+      email,
+      telemovel
     });
     currentPessoa = { pessoa_id, nome, apelido, cargo, email, telemovel };
   } else {
