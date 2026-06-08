@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>A autenticar...</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background: #fff;
+      color: #172b4d;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <p>A autenticar, aguarde...</p>
+  <script>
+    // Recebe o código OAuth e envia para a janela pai
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const error = params.get('error');
+
+    if (code) {
+      if (window.opener) {
+        window.opener.postMessage({ type: 'OAUTH_CODE', code: code }, 'https://jerrythomas-85.github.io');
+        window.close();
+      }
+    } else if (error) {
+      document.querySelector('p').textContent = 'Erro de autenticação: ' + error;
+    }
+  </script>
+</body>
+</html>
