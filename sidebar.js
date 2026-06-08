@@ -197,12 +197,14 @@ function showFormNovaPessoa(token) {
       </div>
       <p class="hint">* Email ou Telemóvel — pelo menos um obrigatório</p>
 
-      <div class="form-group" style="margin-top:16px;">
-        <label>Empresa *</label>
-        <input type="text" id="search-empresa" placeholder="Pesquisar empresa..." autocomplete="off" />
-      </div>
-      <div id="resultados-empresa" class="resultados">
-        <p class="empty">Escreve para pesquisar...</p>
+      <div id="bloco-empresa" style="margin-top:16px;">
+        <div class="form-group">
+          <label>Empresa *</label>
+          <input type="text" id="search-empresa" placeholder="Pesquisar empresa..." autocomplete="off" />
+        </div>
+        <div id="resultados-empresa" class="resultados">
+          <p class="empty">Escreve para pesquisar...</p>
+        </div>
       </div>
       <div id="form-nova-empresa-inline" style="display:none;"></div>
 
@@ -286,11 +288,20 @@ function renderResultadosEmpresa(container, empresas, token) {
 }
 
 function showFormNovaEmpresaInline(nomeInicial, token) {
+  // Esconde o bloco de pesquisa de empresa
+  const blocoEmpresa = document.getElementById('bloco-empresa');
+  const btnCriar = document.getElementById('btn-criar-empresa-inline');
+  if (blocoEmpresa) blocoEmpresa.style.display = 'none';
+  if (btnCriar) btnCriar.style.display = 'none';
+
   const container = document.getElementById('form-nova-empresa-inline');
   container.style.display = 'block';
   container.innerHTML = `
     <div style="background:#f4f5f7;border-radius:6px;padding:12px;margin-top:8px;">
-      <h3 style="margin-bottom:10px;">Nova Empresa</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <h3>Nova Empresa</h3>
+        <button id="btn-voltar-pesquisa-empresa" class="btn-link">← Voltar à pesquisa</button>
+      </div>
       <div class="form-group">
         <label>Nome *</label>
         <input type="text" id="emp-nome" value="${nomeInicial}" placeholder="Nome da empresa" />
@@ -348,10 +359,16 @@ function showFormNovaEmpresaInline(nomeInicial, token) {
     document.getElementById('form-data-inicio-inline').style.display =
       this.value !== 'Sem Avença' ? 'block' : 'none';
   });
+
+  document.getElementById('btn-voltar-pesquisa-empresa').addEventListener('click', () => {
+    container.style.display = 'none';
+    container.innerHTML = '';
+    if (blocoEmpresa) blocoEmpresa.style.display = 'block';
+    currentEmpresa = null;
+  });
 }
 
 async function handleSaveNovaPessoa(token) {
-  // Lê TODOS os valores do DOM ANTES de qualquer showLoading()
   const nome = (document.getElementById('pes-nome') || {value:''}).value.trim();
   const apelido = (document.getElementById('pes-apelido') || {value:''}).value.trim();
   const cargo = (document.getElementById('pes-cargo') || {value:''}).value;
@@ -359,7 +376,6 @@ async function handleSaveNovaPessoa(token) {
   const telemovel = (document.getElementById('pes-telemovel') || {value:''}).value.trim();
   const funcao = (document.getElementById('pes-funcao') || {value:''}).value.trim();
 
-  // Lê dados da empresa inline ANTES de showLoading()
   const formInline = document.getElementById('form-nova-empresa-inline');
   const inlineVisivel = formInline && formInline.style.display !== 'none' && formInline.innerHTML !== '';
 
@@ -377,7 +393,6 @@ async function handleSaveNovaPessoa(token) {
     };
   }
 
-  // Validações
   if (!nome || !apelido || !cargo) {
     if (!nome) showFieldError('pes-nome', 'Obrigatório');
     if (!apelido) showFieldError('pes-apelido', 'Obrigatório');
@@ -402,10 +417,8 @@ async function handleSaveNovaPessoa(token) {
     return;
   }
 
-  // Tudo validado — agora sim showLoading()
   showLoading();
 
-  // Cria empresa se necessário
   if (inlineVisivel && !currentEmpresa && empDados) {
     const plano = empDados.setor === 'Restaurante' ? empDados.plano : '';
     const data_inicio = (plano && plano !== 'Sem Avença') ? empDados.data_inicio : '';
@@ -423,7 +436,6 @@ async function handleSaveNovaPessoa(token) {
     allEmpresas.push(currentEmpresa);
   }
 
-  // Cria pessoa
   const pessoa_id = await SheetsAPI.createPessoa(token, {
     empresa_id: currentEmpresa.empresa_id,
     nome,
