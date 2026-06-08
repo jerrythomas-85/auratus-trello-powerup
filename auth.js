@@ -7,25 +7,43 @@ const Auth = {
   TOKEN_KEY: 'auratus_google_token',
   TOKEN_EXPIRY_KEY: 'auratus_google_token_expiry',
 
+  _token: null,
+  _expiry: null,
+
   getToken() {
-    const token = localStorage.getItem(this.TOKEN_KEY);
-    const expiry = localStorage.getItem(this.TOKEN_EXPIRY_KEY);
-    if (!token || !expiry) return null;
-    if (Date.now() > parseInt(expiry)) {
-      this.clearToken();
-      return null;
+    // Primeiro verifica memória
+    if (this._token && this._expiry && Date.now() < this._expiry) {
+      return this._token;
     }
-    return token;
+    // Depois tenta localStorage
+    try {
+      const token = localStorage.getItem(this.TOKEN_KEY);
+      const expiry = localStorage.getItem(this.TOKEN_EXPIRY_KEY);
+      if (token && expiry && Date.now() < parseInt(expiry)) {
+        this._token = token;
+        this._expiry = parseInt(expiry);
+        return token;
+      }
+    } catch(e) {}
+    return null;
   },
 
-  saveToken(token, expiresIn = 3600) {
-    localStorage.setItem(this.TOKEN_KEY, token);
-    localStorage.setItem(this.TOKEN_EXPIRY_KEY, Date.now() + (expiresIn * 1000));
+  saveToken(token, expiry) {
+    this._token = token;
+    this._expiry = expiry;
+    try {
+      localStorage.setItem(this.TOKEN_KEY, token);
+      localStorage.setItem(this.TOKEN_EXPIRY_KEY, String(expiry));
+    } catch(e) {}
   },
 
   clearToken() {
-    localStorage.removeItem(this.TOKEN_KEY);
-    localStorage.removeItem(this.TOKEN_EXPIRY_KEY);
+    this._token = null;
+    this._expiry = null;
+    try {
+      localStorage.removeItem(this.TOKEN_KEY);
+      localStorage.removeItem(this.TOKEN_EXPIRY_KEY);
+    } catch(e) {}
   },
 
   login() {
@@ -46,11 +64,22 @@ const Auth = {
         return;
       }
 
-      // Polling: espera que o popup feche e verifica o localStorage
-      const interval = setInterval(() => {
+      // Recebe token via postMessage
+      const messageHandler = (event) => {
+        if (!event.data || event.data.type !== 'OAUTH_TOKEN') return;
+        window.removeEventListener('message', messageHandler);
+        clearInterval(pollInterval);
+        this.saveToken(event.data.token, event.data.expiry);
+        resolve(event.data.token);
+      };
+      window.addEventListener('message', messageHandler);
+
+      // Fallback: polling quando popup fecha
+      const pollInterval = setInterval(() => {
         try {
           if (popup.closed) {
-            clearInterval(interval);
+            clearInterval(pollInterval);
+            window.removeEventListener('message', messageHandler);
             const token = this.getToken();
             if (token) {
               resolve(token);
