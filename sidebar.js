@@ -100,7 +100,9 @@ function showSearchPessoa(token) {
       <div class="form-group">
         <input type="text" id="search-pessoa" placeholder="Pesquisar pessoa..." autocomplete="off" />
       </div>
-      <div id="resultados-pessoa" class="resultados"></div>
+      <div id="resultados-pessoa" class="resultados">
+        <p class="empty">Escreve para pesquisar...</p>
+      </div>
       <button id="btn-nova-pessoa" class="btn-secondary" style="margin-top:8px;">+ Criar nova pessoa</button>
     </div>
   `;
@@ -108,11 +110,12 @@ function showSearchPessoa(token) {
   const input = document.getElementById('search-pessoa');
   const resultados = document.getElementById('resultados-pessoa');
 
-  // Mostra todos ao abrir
-  renderResultadosPessoa(resultados, allPessoas, token);
-
   input.addEventListener('input', function() {
     const q = this.value.toLowerCase();
+    if (q.length === 0) {
+      resultados.innerHTML = `<p class="empty">Escreve para pesquisar...</p>`;
+      return;
+    }
     const filtradas = allPessoas.filter(p =>
       (p.nome + ' ' + p.apelido).toLowerCase().includes(q)
     );
@@ -198,7 +201,9 @@ function showFormNovaPessoa(token) {
         <label>Empresa *</label>
         <input type="text" id="search-empresa" placeholder="Pesquisar empresa..." autocomplete="off" />
       </div>
-      <div id="resultados-empresa" class="resultados"></div>
+      <div id="resultados-empresa" class="resultados">
+        <p class="empty">Escreve para pesquisar...</p>
+      </div>
       <div id="form-nova-empresa-inline" style="display:none;"></div>
 
       <div class="form-actions" style="margin-top:16px;">
@@ -217,29 +222,32 @@ function showFormNovaPessoa(token) {
     showSearchPessoa(token);
   });
 
-  // Pesquisa empresa
   const inputEmpresa = document.getElementById('search-empresa');
   const resultadosEmpresa = document.getElementById('resultados-empresa');
 
-  renderResultadosEmpresa(resultadosEmpresa, allEmpresas, token);
-
   inputEmpresa.addEventListener('input', function() {
     const q = this.value.toLowerCase();
+    if (q.length === 0) {
+      resultadosEmpresa.innerHTML = `<p class="empty">Escreve para pesquisar...</p>`;
+      const existeBtnCriar = document.getElementById('btn-criar-empresa-inline');
+      if (existeBtnCriar) existeBtnCriar.remove();
+      return;
+    }
     const filtradas = allEmpresas.filter(e => e.nome.toLowerCase().includes(q));
     renderResultadosEmpresa(resultadosEmpresa, filtradas, token);
-    // Mostra botão criar empresa se não houver match exato
     const match = allEmpresas.find(e => e.nome.toLowerCase() === q);
     const existeBtnCriar = document.getElementById('btn-criar-empresa-inline');
-    if (!match && this.value.length > 0) {
+    if (!match) {
       if (!existeBtnCriar) {
         const btn = document.createElement('button');
         btn.id = 'btn-criar-empresa-inline';
         btn.className = 'btn-secondary';
         btn.style.marginTop = '6px';
+        btn.style.width = '100%';
         btn.textContent = `+ Criar "${this.value}"`;
         resultadosEmpresa.after(btn);
         btn.addEventListener('click', () => {
-          showFormNovaEmpresaInline(this.value, token);
+          showFormNovaEmpresaInline(document.getElementById('search-empresa').value, token);
         });
       } else {
         existeBtnCriar.textContent = `+ Criar "${this.value}"`;
@@ -271,7 +279,6 @@ function renderResultadosEmpresa(container, empresas, token) {
       container.querySelectorAll('.resultado-item').forEach(i => i.classList.remove('selecionado'));
       item.classList.add('selecionado');
       currentEmpresa = allEmpresas.find(e => e.empresa_id === item.dataset.empresaId);
-      // Esconde form inline se estiver aberto
       document.getElementById('form-nova-empresa-inline').style.display = 'none';
       document.getElementById('form-nova-empresa-inline').innerHTML = '';
     });
@@ -364,7 +371,6 @@ async function handleSaveNovaPessoa(token) {
     return;
   }
 
-  // Verifica se há empresa selecionada ou inline para criar
   const formInline = document.getElementById('form-nova-empresa-inline');
   const inlineVisivel = formInline && formInline.style.display !== 'none' && formInline.innerHTML !== '';
 
@@ -375,7 +381,6 @@ async function handleSaveNovaPessoa(token) {
 
   showLoading();
 
-  // Cria empresa inline se necessário
   if (inlineVisivel && !currentEmpresa) {
     const empNome = document.getElementById('emp-nome').value.trim();
     const empLocalizacao = document.getElementById('emp-localizacao').value.trim();
