@@ -1,1 +1,34 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CRM Auratus</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+</head>
+<body>
+  <div id="crm-panel">
+    <div id="client-info">
+      <h2 id="client-name">A carregar...</h2>
+      <div class="info-row"><span class="label">Email</span><span id="client-email">—</span></div>
+      <div class="info-row"><span class="label">Telefone</span><span id="client-phone">—</span></div>
+      <div class="info-row"><span class="label">Plano</span><span id="client-plan">—</span></div>
+      <div class="info-row"><span class="label">Valor</span><span id="client-value">—</span></div>
+    </div>
 
+    <div id="email-history">
+      <h3>Histórico de Emails</h3>
+      <div id="email-list"><p class="empty">Sem emails registados.</p></div>
+    </div>
+
+    <div id="email-form">
+      <h3>Enviar Email</h3>
+      <input type="text" id="email-subject" placeholder="Assunto" />
+      <textarea id="email-body" placeholder="Mensagem..."></textarea>
+      <button id="send-btn">Enviar</button>
+    </div>
+  </div>
+  <script src="sidebar.js"></script>
+</body>
+</html>
