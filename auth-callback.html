@@ -28,10 +28,19 @@
 
     if (accessToken) {
       const expiry = Date.now() + (parseInt(expiresIn) || 3600) * 1000;
-      localStorage.setItem('auratus_google_token', accessToken);
-      localStorage.setItem('auratus_google_token_expiry', expiry);
+      // Guarda em todas as formas possíveis
+      try { localStorage.setItem('auratus_google_token', accessToken); } catch(e) {}
+      try { localStorage.setItem('auratus_google_token_expiry', String(expiry)); } catch(e) {}
+      // Envia para qualquer janela que esteja à escuta
+      try {
+        window.opener && window.opener.postMessage({
+          type: 'OAUTH_TOKEN',
+          token: accessToken,
+          expiry: expiry
+        }, '*');
+      } catch(e) {}
       document.querySelector('p').textContent = 'Autenticado! A fechar...';
-      setTimeout(() => window.close(), 500);
+      setTimeout(() => window.close(), 800);
     } else if (error) {
       document.querySelector('p').textContent = 'Erro: ' + error;
     } else {
