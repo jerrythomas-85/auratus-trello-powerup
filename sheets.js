@@ -4,10 +4,8 @@
 
 const SheetsAPI = {
 
-  // URL base da Sheets API
   baseURL: 'https://sheets.googleapis.com/v4/spreadsheets',
 
-  // Cabeçalhos autenticados
   headers(token) {
     return {
       'Authorization': 'Bearer ' + token,
@@ -110,7 +108,6 @@ const SheetsAPI = {
   },
 
   async saveCardAssociacao(token, card_id, empresa_id, pessoa_id) {
-    // Verifica se já existe
     const existente = await this.getCardAssociacao(token, card_id);
     if (existente) {
       await this._updateCardAssociacao(token, card_id, empresa_id, pessoa_id);
@@ -144,4 +141,11 @@ const SheetsAPI = {
 
   async _appendRow(token, sheet, row) {
     const range = `${sheet}!A:A`;
-    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}:append?valueInputOption=RAW&insert
+    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
+    await fetch(url, {
+      method: 'POST',
+      headers: this.headers(token),
+      body: JSON.stringify({ values: [row] })
+    });
+  }
+};
