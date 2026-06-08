@@ -7,7 +7,6 @@ const Auth = {
   TOKEN_KEY: 'auratus_google_token',
   TOKEN_EXPIRY_KEY: 'auratus_google_token_expiry',
 
-  // Devolve o token se válido, null se expirado ou inexistente
   getToken() {
     const token = sessionStorage.getItem(this.TOKEN_KEY);
     const expiry = sessionStorage.getItem(this.TOKEN_EXPIRY_KEY);
@@ -29,7 +28,6 @@ const Auth = {
     sessionStorage.removeItem(this.TOKEN_EXPIRY_KEY);
   },
 
-  // Inicia o fluxo OAuth — abre popup de autenticação Google
   login() {
     return new Promise((resolve, reject) => {
       const params = new URLSearchParams({
@@ -48,19 +46,27 @@ const Auth = {
         return;
       }
 
+      // Recebe o token via postMessage do auth-callback.html
       const handler = (event) => {
         if (event.origin !== 'https://jerrythomas-85.github.io') return;
-        if (event.data && event.data.type === 'OAUTH_CODE') {
-          window.removeEventListener('message', handler);
-          // Com response_type=token o access_token vem direto no hash
-        }
+        if (!event.data || event.data.type !== 'OAUTH_TOKEN') return;
+
+        window.removeEventListener('message', handler);
+        clearInterval(interval);
+
+        const { token, expiresIn } = event.data;
+        this.saveToken(token, expiresIn);
+        resolve(token);
       };
 
-      // Polling para detetar quando o popup fecha com token
+      window.addEventListener('message', handler);
+
+      // Fallback: detetar se popup fechou sem token
       const interval = setInterval(() => {
         try {
           if (popup.closed) {
             clearInterval(interval);
+            window.removeEventListener('message', handler);
             const token = this.getToken();
             if (token) {
               resolve(token);
@@ -73,7 +79,6 @@ const Auth = {
     });
   },
 
-  // Garante que há token válido — faz login se necessário
   async ensureToken() {
     const token = this.getToken();
     if (token) return token;
