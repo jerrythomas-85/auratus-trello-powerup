@@ -20,7 +20,6 @@
 <body>
   <p>A autenticar, aguarde...</p>
   <script>
-    // O token vem no hash do URL: #access_token=...&expires_in=...
     const hash = window.location.hash.substring(1);
     const params = new URLSearchParams(hash);
     const accessToken = params.get('access_token');
@@ -28,15 +27,11 @@
     const error = params.get('error');
 
     if (accessToken) {
-      // Guarda o token no sessionStorage da janela pai
-      if (window.opener) {
-        window.opener.postMessage({
-          type: 'OAUTH_TOKEN',
-          token: accessToken,
-          expiresIn: parseInt(expiresIn) || 3600
-        }, 'https://jerrythomas-85.github.io');
-        window.close();
-      }
+      const expiry = Date.now() + (parseInt(expiresIn) || 3600) * 1000;
+      localStorage.setItem('auratus_google_token', accessToken);
+      localStorage.setItem('auratus_google_token_expiry', expiry);
+      document.querySelector('p').textContent = 'Autenticado! A fechar...';
+      setTimeout(() => window.close(), 500);
     } else if (error) {
       document.querySelector('p').textContent = 'Erro: ' + error;
     } else {
