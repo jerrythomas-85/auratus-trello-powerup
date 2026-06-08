@@ -8,8 +8,8 @@ const Auth = {
   TOKEN_EXPIRY_KEY: 'auratus_google_token_expiry',
 
   getToken() {
-    const token = sessionStorage.getItem(this.TOKEN_KEY);
-    const expiry = sessionStorage.getItem(this.TOKEN_EXPIRY_KEY);
+    const token = localStorage.getItem(this.TOKEN_KEY);
+    const expiry = localStorage.getItem(this.TOKEN_EXPIRY_KEY);
     if (!token || !expiry) return null;
     if (Date.now() > parseInt(expiry)) {
       this.clearToken();
@@ -19,13 +19,13 @@ const Auth = {
   },
 
   saveToken(token, expiresIn = 3600) {
-    sessionStorage.setItem(this.TOKEN_KEY, token);
-    sessionStorage.setItem(this.TOKEN_EXPIRY_KEY, Date.now() + (expiresIn * 1000));
+    localStorage.setItem(this.TOKEN_KEY, token);
+    localStorage.setItem(this.TOKEN_EXPIRY_KEY, Date.now() + (expiresIn * 1000));
   },
 
   clearToken() {
-    sessionStorage.removeItem(this.TOKEN_KEY);
-    sessionStorage.removeItem(this.TOKEN_EXPIRY_KEY);
+    localStorage.removeItem(this.TOKEN_KEY);
+    localStorage.removeItem(this.TOKEN_EXPIRY_KEY);
   },
 
   login() {
@@ -46,32 +46,16 @@ const Auth = {
         return;
       }
 
-      // Recebe o token via postMessage do auth-callback.html
-      const handler = (event) => {
-        if (event.origin !== 'https://jerrythomas-85.github.io') return;
-        if (!event.data || event.data.type !== 'OAUTH_TOKEN') return;
-
-        window.removeEventListener('message', handler);
-        clearInterval(interval);
-
-        const { token, expiresIn } = event.data;
-        this.saveToken(token, expiresIn);
-        resolve(token);
-      };
-
-      window.addEventListener('message', handler);
-
-      // Fallback: detetar se popup fechou sem token
+      // Polling: espera que o popup feche e verifica o localStorage
       const interval = setInterval(() => {
         try {
           if (popup.closed) {
             clearInterval(interval);
-            window.removeEventListener('message', handler);
             const token = this.getToken();
             if (token) {
               resolve(token);
             } else {
-              reject(new Error('Autenticação cancelada.'));
+              reject(new Error('Autenticação cancelada ou falhou.'));
             }
           }
         } catch(e) {}
