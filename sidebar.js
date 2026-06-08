@@ -6,6 +6,8 @@ let t;
 let currentCard = null;
 let currentEmpresa = null;
 let currentPessoa = null;
+let allEmpresas = [];
+let allPessoas = [];
 
 // ---- INIT ----
 
@@ -19,13 +21,17 @@ async function renderPanel() {
   showLoading();
   try {
     const token = await Auth.ensureToken();
-    const associacao = await SheetsAPI.getCardAssociacao(token, currentCard.id);
+    const [associacao, empresas, pessoas] = await Promise.all([
+      SheetsAPI.getCardAssociacao(token, currentCard.id),
+      SheetsAPI.getEmpresas(token),
+      SheetsAPI.getPessoas(token)
+    ]);
+    allEmpresas = empresas;
+    allPessoas = pessoas;
 
     if (!associacao) {
-      showAssociacaoPanel(token);
+      showSearchPessoa(token);
     } else {
-      const empresas = await SheetsAPI.getEmpresas(token);
-      const pessoas = await SheetsAPI.getPessoas(token);
       currentEmpresa = empresas.find(e => e.empresa_id === associacao.empresa_id);
       currentPessoa = pessoas.find(p => p.pessoa_id === associacao.pessoa_id);
       showClientePanel(token);
@@ -33,22 +39,6 @@ async function renderPanel() {
   } catch (err) {
     showError(err.message);
   }
-}
-
-// ---- PAINEL: SEM ASSOCIAÇÃO ----
-
-function showAssociacaoPanel(token) {
-  const panel = document.getElementById('crm-panel');
-  panel.innerHTML = `
-    <div class="section">
-      <h2>Associar Cliente</h2>
-      <p class="empty">Este card ainda não está associado a nenhum cliente.</p>
-      <button id="btn-associar" class="btn-primary">Associar Empresa / Pessoa</button>
-    </div>
-  `;
-  document.getElementById('btn-associar').addEventListener('click', () => {
-    showFormEmpresa(token);
-  });
 }
 
 // ---- PAINEL: CLIENTE ASSOCIADO ----
@@ -59,10 +49,10 @@ function showClientePanel(token) {
   const p = currentPessoa || {};
 
   panel.innerHTML = `
-    <div class="section" id="section-empresa">
+    <div class="section">
       <div class="section-header">
         <h2>${e.nome || '—'}</h2>
-        <button class="btn-link" id="btn-editar-associacao">Alterar</button>
+        <button class="btn-link" id="btn-alterar">Alterar</button>
       </div>
       <div class="info-row"><span class="label">Localização</span><span>${e.localizacao || '—'}</span></div>
       <div class="info-row"><span class="label">Setor</span><span>${e.setor || '—'}</span></div>
@@ -72,7 +62,7 @@ function showClientePanel(token) {
       ${e.notas ? `<div class="info-row"><span class="label">Notas</span><span>${e.notas}</span></div>` : ''}
     </div>
 
-    <div class="section" id="section-pessoa">
+    <div class="section">
       <h3>Contacto</h3>
       <div class="info-row"><span class="label">Nome</span><span>${p.nome || '—'} ${p.apelido || ''}</span></div>
       <div class="info-row"><span class="label">Cargo</span><span>${p.cargo || '—'}</span></div>
@@ -81,12 +71,12 @@ function showClientePanel(token) {
       ${p.telemovel ? `<div class="info-row"><span class="label">Telemóvel</span><span>${p.telemovel}</span></div>` : ''}
     </div>
 
-    <div class="section" id="section-emails">
+    <div class="section">
       <h3>Histórico de Emails</h3>
       <div id="email-list"><p class="empty">A carregar emails...</p></div>
     </div>
 
-    <div class="section" id="section-enviar">
+    <div class="section">
       <h3>Enviar Email</h3>
       <input type="text" id="email-subject" placeholder="Assunto" />
       <textarea id="email-body" placeholder="Mensagem..."></textarea>
@@ -94,283 +84,343 @@ function showClientePanel(token) {
     </div>
   `;
 
-  document.getElementById('btn-editar-associacao').addEventListener('click', () => {
-    showFormEmpresa(token);
+  document.getElementById('btn-alterar').addEventListener('click', () => {
+    showSearchPessoa(token);
   });
 }
 
-// ---- FORMULÁRIO: EMPRESA ----
+// ---- PESQUISA DE PESSOA ----
 
-async function showFormEmpresa(token) {
-  showLoading();
-  const empresas = await SheetsAPI.getEmpresas(token);
+function showSearchPessoa(token) {
   const panel = document.getElementById('crm-panel');
 
   panel.innerHTML = `
     <div class="section">
-      <h2>Selecionar Empresa</h2>
-
+      <h2>Associar Contacto</h2>
       <div class="form-group">
-        <label>Empresa existente</label>
-        <select id="select-empresa">
-          <option value="">— Selecionar —</option>
-          ${empresas.map(e => `<option value="${e.empresa_id}">${e.nome}</option>`).join('')}
-          <option value="nova">+ Criar nova empresa</option>
-        </select>
+        <input type="text" id="search-pessoa" placeholder="Pesquisar pessoa..." autocomplete="off" />
       </div>
-
-      <div id="form-nova-empresa" style="display:none;">
-        <div class="form-group">
-          <label>Nome *</label>
-          <input type="text" id="emp-nome" placeholder="Nome da empresa" />
-        </div>
-        <div class="form-group">
-          <label>Localização *</label>
-          <input type="text" id="emp-localizacao" placeholder="Cidade / Concelho" />
-        </div>
-        <div class="form-group">
-          <label>Setor *</label>
-          <select id="emp-setor">
-            <option value="">— Selecionar —</option>
-            <option value="Restaurante">Restaurante</option>
-            <option value="Outro">Outro</option>
-          </select>
-        </div>
-        <div id="form-restaurante" style="display:none;">
-          <div class="form-group">
-            <label>Plano</label>
-            <select id="emp-plano">
-              <option value="Sem Avença">Sem Avença</option>
-              <option value="ARD">ARD</option>
-              <option value="ARD Pro">ARD Pro</option>
-              <option value="ARD Premium">ARD Premium</option>
-            </select>
-          </div>
-          <div id="form-data-inicio" style="display:none;">
-            <div class="form-group">
-              <label>Data de Início</label>
-              <input type="date" id="emp-data-inicio" />
-            </div>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Email</label>
-          <input type="email" id="emp-email" placeholder="email@empresa.com" />
-        </div>
-        <div class="form-group">
-          <label>Telefone</label>
-          <input type="text" id="emp-telefone" placeholder="+351 000 000 000" />
-        </div>
-        <div class="form-group">
-          <label>Notas</label>
-          <textarea id="emp-notas" placeholder="Notas internas..."></textarea>
-        </div>
-      </div>
-
-      <div class="form-actions">
-        <button id="btn-next-empresa" class="btn-primary">Seguinte →</button>
-      </div>
+      <div id="resultados-pessoa" class="resultados"></div>
+      <button id="btn-nova-pessoa" class="btn-secondary" style="margin-top:8px;">+ Criar nova pessoa</button>
     </div>
   `;
 
-  document.getElementById('select-empresa').addEventListener('change', function() {
-    document.getElementById('form-nova-empresa').style.display =
-      this.value === 'nova' ? 'block' : 'none';
+  const input = document.getElementById('search-pessoa');
+  const resultados = document.getElementById('resultados-pessoa');
+
+  // Mostra todos ao abrir
+  renderResultadosPessoa(resultados, allPessoas, token);
+
+  input.addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    const filtradas = allPessoas.filter(p =>
+      (p.nome + ' ' + p.apelido).toLowerCase().includes(q)
+    );
+    renderResultadosPessoa(resultados, filtradas, token);
   });
 
-  document.getElementById('emp-setor').addEventListener('change', function() {
-    document.getElementById('form-restaurante').style.display =
-      this.value === 'Restaurante' ? 'block' : 'none';
-  });
-
-  document.getElementById('emp-plano').addEventListener('change', function() {
-    document.getElementById('form-data-inicio').style.display =
-      this.value !== 'Sem Avença' ? 'block' : 'none';
-  });
-
-  document.getElementById('btn-next-empresa').addEventListener('click', async () => {
-    await handleNextEmpresa(token, empresas);
+  document.getElementById('btn-nova-pessoa').addEventListener('click', () => {
+    showFormNovaPessoa(token);
   });
 }
 
-async function handleNextEmpresa(token, empresas) {
-  const select = document.getElementById('select-empresa');
-  const valor = select.value;
-
-  if (!valor) {
-    showFieldError('select-empresa', 'Seleciona ou cria uma empresa.');
+function renderResultadosPessoa(container, pessoas, token) {
+  if (pessoas.length === 0) {
+    container.innerHTML = `<p class="empty">Nenhuma pessoa encontrada.</p>`;
     return;
   }
+  container.innerHTML = pessoas.map(p => {
+    const empresa = allEmpresas.find(e => e.empresa_id === p.empresa_id);
+    return `
+      <div class="resultado-item" data-pessoa-id="${p.pessoa_id}">
+        <strong>${p.nome} ${p.apelido}</strong>
+        <span>${empresa ? empresa.nome : '—'} · ${p.cargo}</span>
+      </div>
+    `;
+  }).join('');
 
-  if (valor === 'nova') {
-    const nome = document.getElementById('emp-nome').value.trim();
-    const localizacao = document.getElementById('emp-localizacao').value.trim();
-    const setor = document.getElementById('emp-setor').value;
-
-    if (!nome || !localizacao || !setor) {
-      if (!nome) showFieldError('emp-nome', 'Obrigatório');
-      if (!localizacao) showFieldError('emp-localizacao', 'Obrigatório');
-      if (!setor) showFieldError('emp-setor', 'Obrigatório');
-      return;
-    }
-
-    const planoEl = document.getElementById('emp-plano');
-    const plano = (setor === 'Restaurante' && planoEl) ? planoEl.value : '';
-    const dataInicioEl = document.getElementById('emp-data-inicio');
-    const data_inicio = (plano && plano !== 'Sem Avença' && dataInicioEl) ? dataInicioEl.value : '';
-    const emailEl = document.getElementById('emp-email');
-    const telefoneEl = document.getElementById('emp-telefone');
-    const notasEl = document.getElementById('emp-notas');
-
-    showLoading();
-    const empresa_id = await SheetsAPI.createEmpresa(token, {
-      nome,
-      localizacao,
-      setor,
-      plano,
-      data_inicio,
-      email: emailEl ? emailEl.value.trim() : '',
-      telefone: telefoneEl ? telefoneEl.value.trim() : '',
-      notas: notasEl ? notasEl.value.trim() : ''
+  container.querySelectorAll('.resultado-item').forEach(item => {
+    item.addEventListener('click', async () => {
+      const pessoa_id = item.dataset.pessoaId;
+      const pessoa = allPessoas.find(p => p.pessoa_id === pessoa_id);
+      const empresa = allEmpresas.find(e => e.empresa_id === pessoa.empresa_id);
+      currentPessoa = pessoa;
+      currentEmpresa = empresa;
+      showLoading();
+      await SheetsAPI.saveCardAssociacao(token, currentCard.id, empresa.empresa_id, pessoa.pessoa_id);
+      showClientePanel(token);
     });
-    currentEmpresa = { empresa_id, nome, localizacao, setor, plano };
-  } else {
-    currentEmpresa = empresas.find(e => e.empresa_id === valor);
-  }
-
-  await showFormPessoa(token);
+  });
 }
 
-// ---- FORMULÁRIO: PESSOA ----
+// ---- FORMULÁRIO: NOVA PESSOA ----
 
-async function showFormPessoa(token) {
-  showLoading();
-  const pessoas = await SheetsAPI.getPessoas(token, currentEmpresa.empresa_id);
+function showFormNovaPessoa(token) {
   const panel = document.getElementById('crm-panel');
 
   panel.innerHTML = `
     <div class="section">
-      <h2>Selecionar Pessoa</h2>
-      <p class="sub">Empresa: <strong>${currentEmpresa.nome}</strong></p>
+      <h2>Nova Pessoa</h2>
 
       <div class="form-group">
-        <label>Pessoa existente</label>
-        <select id="select-pessoa">
+        <label>Nome *</label>
+        <input type="text" id="pes-nome" placeholder="Nome" />
+      </div>
+      <div class="form-group">
+        <label>Apelido *</label>
+        <input type="text" id="pes-apelido" placeholder="Apelido" />
+      </div>
+      <div class="form-group">
+        <label>Cargo *</label>
+        <select id="pes-cargo">
           <option value="">— Selecionar —</option>
-          ${pessoas.map(p => `<option value="${p.pessoa_id}">${p.nome} ${p.apelido}</option>`).join('')}
-          <option value="nova">+ Criar nova pessoa</option>
+          <option value="Gerência">Gerência</option>
+          <option value="Colaborador">Colaborador</option>
         </select>
       </div>
-
-      <div id="form-nova-pessoa" style="display:none;">
+      <div id="form-funcao" style="display:none;">
         <div class="form-group">
-          <label>Nome *</label>
-          <input type="text" id="pes-nome" placeholder="Nome" />
+          <label>Função</label>
+          <input type="text" id="pes-funcao" placeholder="Ex: Cozinheiro, Gestor..." />
         </div>
-        <div class="form-group">
-          <label>Apelido *</label>
-          <input type="text" id="pes-apelido" placeholder="Apelido" />
-        </div>
-        <div class="form-group">
-          <label>Cargo *</label>
-          <select id="pes-cargo">
-            <option value="">— Selecionar —</option>
-            <option value="Gerência">Gerência</option>
-            <option value="Colaborador">Colaborador</option>
-          </select>
-        </div>
-        <div id="form-funcao" style="display:none;">
-          <div class="form-group">
-            <label>Função</label>
-            <input type="text" id="pes-funcao" placeholder="Ex: Cozinheiro, Gestor..." />
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Email</label>
-          <input type="email" id="pes-email" placeholder="email@exemplo.com" />
-        </div>
-        <div class="form-group">
-          <label>Telemóvel</label>
-          <input type="text" id="pes-telemovel" placeholder="+351 000 000 000" />
-        </div>
-        <p class="hint">* Email ou Telemóvel — pelo menos um obrigatório</p>
       </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="pes-email" placeholder="email@exemplo.com" />
+      </div>
+      <div class="form-group">
+        <label>Telemóvel</label>
+        <input type="text" id="pes-telemovel" placeholder="+351 000 000 000" />
+      </div>
+      <p class="hint">* Email ou Telemóvel — pelo menos um obrigatório</p>
 
-      <div class="form-actions">
-        <button id="btn-back-pessoa" class="btn-secondary">← Voltar</button>
+      <div class="form-group" style="margin-top:16px;">
+        <label>Empresa *</label>
+        <input type="text" id="search-empresa" placeholder="Pesquisar empresa..." autocomplete="off" />
+      </div>
+      <div id="resultados-empresa" class="resultados"></div>
+      <div id="form-nova-empresa-inline" style="display:none;"></div>
+
+      <div class="form-actions" style="margin-top:16px;">
+        <button id="btn-back-nova-pessoa" class="btn-secondary">← Voltar</button>
         <button id="btn-save-pessoa" class="btn-primary">Guardar</button>
       </div>
     </div>
   `;
-
-  document.getElementById('select-pessoa').addEventListener('change', function() {
-    document.getElementById('form-nova-pessoa').style.display =
-      this.value === 'nova' ? 'block' : 'none';
-  });
 
   document.getElementById('pes-cargo').addEventListener('change', function() {
     document.getElementById('form-funcao').style.display =
       this.value === 'Colaborador' ? 'block' : 'none';
   });
 
-  document.getElementById('btn-back-pessoa').addEventListener('click', () => {
-    showFormEmpresa(token);
+  document.getElementById('btn-back-nova-pessoa').addEventListener('click', () => {
+    showSearchPessoa(token);
+  });
+
+  // Pesquisa empresa
+  const inputEmpresa = document.getElementById('search-empresa');
+  const resultadosEmpresa = document.getElementById('resultados-empresa');
+
+  renderResultadosEmpresa(resultadosEmpresa, allEmpresas, token);
+
+  inputEmpresa.addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    const filtradas = allEmpresas.filter(e => e.nome.toLowerCase().includes(q));
+    renderResultadosEmpresa(resultadosEmpresa, filtradas, token);
+    // Mostra botão criar empresa se não houver match exato
+    const match = allEmpresas.find(e => e.nome.toLowerCase() === q);
+    const existeBtnCriar = document.getElementById('btn-criar-empresa-inline');
+    if (!match && this.value.length > 0) {
+      if (!existeBtnCriar) {
+        const btn = document.createElement('button');
+        btn.id = 'btn-criar-empresa-inline';
+        btn.className = 'btn-secondary';
+        btn.style.marginTop = '6px';
+        btn.textContent = `+ Criar "${this.value}"`;
+        resultadosEmpresa.after(btn);
+        btn.addEventListener('click', () => {
+          showFormNovaEmpresaInline(this.value, token);
+        });
+      } else {
+        existeBtnCriar.textContent = `+ Criar "${this.value}"`;
+      }
+    } else if (existeBtnCriar) {
+      existeBtnCriar.remove();
+    }
   });
 
   document.getElementById('btn-save-pessoa').addEventListener('click', async () => {
-    await handleSavePessoa(token, pessoas);
+    await handleSaveNovaPessoa(token);
   });
 }
 
-async function handleSavePessoa(token, pessoas) {
-  const select = document.getElementById('select-pessoa');
-  const valor = select.value;
+function renderResultadosEmpresa(container, empresas, token) {
+  if (empresas.length === 0) {
+    container.innerHTML = `<p class="empty">Nenhuma empresa encontrada.</p>`;
+    return;
+  }
+  container.innerHTML = empresas.map(e => `
+    <div class="resultado-item ${currentEmpresa && currentEmpresa.empresa_id === e.empresa_id ? 'selecionado' : ''}" data-empresa-id="${e.empresa_id}">
+      <strong>${e.nome}</strong>
+      <span>${e.localizacao} · ${e.setor}</span>
+    </div>
+  `).join('');
 
-  if (!valor) {
-    showFieldError('select-pessoa', 'Seleciona ou cria uma pessoa.');
+  container.querySelectorAll('.resultado-item').forEach(item => {
+    item.addEventListener('click', () => {
+      container.querySelectorAll('.resultado-item').forEach(i => i.classList.remove('selecionado'));
+      item.classList.add('selecionado');
+      currentEmpresa = allEmpresas.find(e => e.empresa_id === item.dataset.empresaId);
+      // Esconde form inline se estiver aberto
+      document.getElementById('form-nova-empresa-inline').style.display = 'none';
+      document.getElementById('form-nova-empresa-inline').innerHTML = '';
+    });
+  });
+}
+
+function showFormNovaEmpresaInline(nomeInicial, token) {
+  const container = document.getElementById('form-nova-empresa-inline');
+  container.style.display = 'block';
+  container.innerHTML = `
+    <div style="background:#f4f5f7;border-radius:6px;padding:12px;margin-top:8px;">
+      <h3 style="margin-bottom:10px;">Nova Empresa</h3>
+      <div class="form-group">
+        <label>Nome *</label>
+        <input type="text" id="emp-nome" value="${nomeInicial}" placeholder="Nome da empresa" />
+      </div>
+      <div class="form-group">
+        <label>Localização *</label>
+        <input type="text" id="emp-localizacao" placeholder="Cidade / Concelho" />
+      </div>
+      <div class="form-group">
+        <label>Setor *</label>
+        <select id="emp-setor">
+          <option value="">— Selecionar —</option>
+          <option value="Restaurante">Restaurante</option>
+          <option value="Outro">Outro</option>
+        </select>
+      </div>
+      <div id="form-restaurante-inline" style="display:none;">
+        <div class="form-group">
+          <label>Plano</label>
+          <select id="emp-plano">
+            <option value="Sem Avença">Sem Avença</option>
+            <option value="ARD">ARD</option>
+            <option value="ARD Pro">ARD Pro</option>
+            <option value="ARD Premium">ARD Premium</option>
+          </select>
+        </div>
+        <div id="form-data-inicio-inline" style="display:none;">
+          <div class="form-group">
+            <label>Data de Início</label>
+            <input type="date" id="emp-data-inicio" />
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="emp-email" placeholder="email@empresa.com" />
+      </div>
+      <div class="form-group">
+        <label>Telefone</label>
+        <input type="text" id="emp-telefone" placeholder="+351 000 000 000" />
+      </div>
+      <div class="form-group">
+        <label>Notas</label>
+        <textarea id="emp-notas" placeholder="Notas internas..."></textarea>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('emp-setor').addEventListener('change', function() {
+    document.getElementById('form-restaurante-inline').style.display =
+      this.value === 'Restaurante' ? 'block' : 'none';
+  });
+
+  document.getElementById('emp-plano').addEventListener('change', function() {
+    document.getElementById('form-data-inicio-inline').style.display =
+      this.value !== 'Sem Avença' ? 'block' : 'none';
+  });
+}
+
+async function handleSaveNovaPessoa(token) {
+  const nome = document.getElementById('pes-nome').value.trim();
+  const apelido = document.getElementById('pes-apelido').value.trim();
+  const cargo = document.getElementById('pes-cargo').value;
+  const emailEl = document.getElementById('pes-email');
+  const telemovelEl = document.getElementById('pes-telemovel');
+  const email = emailEl ? emailEl.value.trim() : '';
+  const telemovel = telemovelEl ? telemovelEl.value.trim() : '';
+
+  if (!nome || !apelido || !cargo) {
+    if (!nome) showFieldError('pes-nome', 'Obrigatório');
+    if (!apelido) showFieldError('pes-apelido', 'Obrigatório');
+    if (!cargo) showFieldError('pes-cargo', 'Obrigatório');
     return;
   }
 
-  if (valor === 'nova') {
-    const nome = document.getElementById('pes-nome').value.trim();
-    const apelido = document.getElementById('pes-apelido').value.trim();
-    const cargo = document.getElementById('pes-cargo').value;
-    const emailEl = document.getElementById('pes-email');
-    const telemovelEl = document.getElementById('pes-telemovel');
-    const email = emailEl ? emailEl.value.trim() : '';
-    const telemovel = telemovelEl ? telemovelEl.value.trim() : '';
+  if (!email && !telemovel) {
+    showError('Preenche pelo menos o email ou o telemóvel.');
+    return;
+  }
 
-    if (!nome || !apelido || !cargo) {
-      if (!nome) showFieldError('pes-nome', 'Obrigatório');
-      if (!apelido) showFieldError('pes-apelido', 'Obrigatório');
-      if (!cargo) showFieldError('pes-cargo', 'Obrigatório');
-      return;
-    }
+  // Verifica se há empresa selecionada ou inline para criar
+  const formInline = document.getElementById('form-nova-empresa-inline');
+  const inlineVisivel = formInline && formInline.style.display !== 'none' && formInline.innerHTML !== '';
 
-    if (!email && !telemovel) {
-      showError('Preenche pelo menos o email ou o telemóvel.');
-      return;
-    }
-
-    const funcaoEl = document.getElementById('pes-funcao');
-    showLoading();
-    const pessoa_id = await SheetsAPI.createPessoa(token, {
-      empresa_id: currentEmpresa.empresa_id,
-      nome,
-      apelido,
-      cargo,
-      funcao: funcaoEl ? funcaoEl.value.trim() : '',
-      email,
-      telemovel
-    });
-    currentPessoa = { pessoa_id, nome, apelido, cargo, email, telemovel };
-  } else {
-    currentPessoa = pessoas.find(p => p.pessoa_id === valor);
+  if (!currentEmpresa && !inlineVisivel) {
+    showFieldError('search-empresa', 'Seleciona ou cria uma empresa.');
+    return;
   }
 
   showLoading();
-  await SheetsAPI.saveCardAssociacao(token, currentCard.id, currentEmpresa.empresa_id, currentPessoa.pessoa_id);
-  await renderPanel();
+
+  // Cria empresa inline se necessário
+  if (inlineVisivel && !currentEmpresa) {
+    const empNome = document.getElementById('emp-nome').value.trim();
+    const empLocalizacao = document.getElementById('emp-localizacao').value.trim();
+    const empSetor = document.getElementById('emp-setor').value;
+
+    if (!empNome || !empLocalizacao || !empSetor) {
+      showError('Preenche os campos obrigatórios da empresa.');
+      return;
+    }
+
+    const planoEl = document.getElementById('emp-plano');
+    const plano = (empSetor === 'Restaurante' && planoEl) ? planoEl.value : '';
+    const dataInicioEl = document.getElementById('emp-data-inicio');
+    const data_inicio = (plano && plano !== 'Sem Avença' && dataInicioEl) ? dataInicioEl.value : '';
+
+    const empresa_id = await SheetsAPI.createEmpresa(token, {
+      nome: empNome,
+      localizacao: empLocalizacao,
+      setor: empSetor,
+      plano,
+      data_inicio,
+      email: (document.getElementById('emp-email') || {value:''}).value.trim(),
+      telefone: (document.getElementById('emp-telefone') || {value:''}).value.trim(),
+      notas: (document.getElementById('emp-notas') || {value:''}).value.trim()
+    });
+    currentEmpresa = { empresa_id, nome: empNome, localizacao: empLocalizacao, setor: empSetor, plano };
+    allEmpresas.push(currentEmpresa);
+  }
+
+  const funcaoEl = document.getElementById('pes-funcao');
+  const pessoa_id = await SheetsAPI.createPessoa(token, {
+    empresa_id: currentEmpresa.empresa_id,
+    nome,
+    apelido,
+    cargo,
+    funcao: funcaoEl ? funcaoEl.value.trim() : '',
+    email,
+    telemovel
+  });
+
+  currentPessoa = { pessoa_id, nome, apelido, cargo, email, telemovel };
+  allPessoas.push(currentPessoa);
+
+  await SheetsAPI.saveCardAssociacao(token, currentCard.id, currentEmpresa.empresa_id, pessoa_id);
+  showClientePanel(token);
 }
 
 // ---- UTILITÁRIOS UI ----
