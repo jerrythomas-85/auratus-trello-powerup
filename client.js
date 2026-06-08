@@ -1,3 +1,7 @@
+// ============================================================
+// CLIENT.JS — Inicialização do Power-Up Trello
+// ============================================================
+
 TrelloPowerUp.initialize({
   'card-buttons': function(t, options) {
     return [{
