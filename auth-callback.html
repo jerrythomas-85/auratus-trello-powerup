@@ -28,19 +28,12 @@
 
     if (accessToken) {
       const expiry = Date.now() + (parseInt(expiresIn) || 3600) * 1000;
-      // Guarda em todas as formas possíveis
-      try { localStorage.setItem('auratus_google_token', accessToken); } catch(e) {}
-      try { localStorage.setItem('auratus_google_token_expiry', String(expiry)); } catch(e) {}
-      // Envia para qualquer janela que esteja à escuta
-      try {
-        window.opener && window.opener.postMessage({
-          type: 'OAUTH_TOKEN',
-          token: accessToken,
-          expiry: expiry
-        }, '*');
-      } catch(e) {}
+      const maxAge = parseInt(expiresIn) || 3600;
+      // Guarda em cookie acessível ao iframe
+      document.cookie = `auratus_token=${accessToken};max-age=${maxAge};path=/;SameSite=None;Secure`;
+      document.cookie = `auratus_expiry=${expiry};max-age=${maxAge};path=/;SameSite=None;Secure`;
       document.querySelector('p').textContent = 'Autenticado! A fechar...';
-      setTimeout(() => window.close(), 800);
+      setTimeout(() => window.close(), 500);
     } else if (error) {
       document.querySelector('p').textContent = 'Erro: ' + error;
     } else {
