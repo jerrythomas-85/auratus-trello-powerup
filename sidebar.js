@@ -106,7 +106,7 @@ async function setBadgeLocal() {
   try {
     if (!currentPessoa || !currentEmpresa) return;
     const pessoa = ((currentPessoa.nome || '') + ' ' + (currentPessoa.apelido || '')).trim();
-    await t.set('card', 'shared', 'crmBadge', { pessoa, empresa: currentEmpresa.nome || '' });
+    await t.set('card', 'shared', 'crmBadge', { pessoa, empresa: (currentEmpresa.nome || '').toUpperCase() });
   } catch (e) {}
 }
 
