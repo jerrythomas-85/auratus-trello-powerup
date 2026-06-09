@@ -13,6 +13,55 @@ body {
   color-scheme: light;
 }
 
+/* Painel embutido no card: funde-se com o card (claro ou escuro) em vez de
+   mostrar um retângulo branco. */
+body.embedded {
+  background: transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  body.embedded {
+    color: #c7d1db;
+    color-scheme: dark;
+  }
+  body.embedded h2 { color: #579dff; }
+  body.embedded h3,
+  body.embedded .label,
+  body.embedded .form-group label,
+  body.embedded .hint,
+  body.embedded .empty { color: #9fadbc; }
+  body.embedded .contacto-nome,
+  body.embedded .resultado-item strong { color: #c7d1db; }
+  body.embedded .info-row { border-bottom-color: rgba(255, 255, 255, 0.1); }
+  body.embedded .btn-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    color: #c7d1db;
+    border-color: rgba(255, 255, 255, 0.16);
+  }
+  body.embedded .btn-secondary:hover { background: rgba(255, 255, 255, 0.14); }
+  body.embedded .btn-danger { color: #ff7452; }
+  body.embedded .resultado-item {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.16);
+  }
+  body.embedded .resultado-item:hover { background: rgba(255, 255, 255, 0.1); }
+  body.embedded .resultado-item.selecionado {
+    background: rgba(87, 157, 255, 0.2);
+    border-color: #579dff;
+  }
+  body.embedded .form-group input,
+  body.embedded .form-group select,
+  body.embedded .form-group textarea {
+    background: rgba(255, 255, 255, 0.06);
+    color: #c7d1db;
+    border-color: rgba(255, 255, 255, 0.16);
+  }
+  body.embedded .tag-mais {
+    background: rgba(255, 255, 255, 0.12);
+    color: #c7d1db;
+  }
+}
+
 /* ---- PAINEL ---- */
 
 #crm-panel {
