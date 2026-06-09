@@ -93,10 +93,6 @@ function showClientePanel(token) {
     <div class="section ficha-empresa" style="background:${cor}1a;border-color:${cor}66;margin-bottom:8px;">
       <div class="section-header">
         <h2>${e.nome || '—'}</h2>
-        <span class="header-actions">
-          <button class="btn-link" id="btn-alterar">Alterar</button>
-          <button class="btn-link btn-danger" id="btn-desassociar">Desassociar</button>
-        </span>
       </div>
       <div class="info-row"><span class="label">Localização</span><span>${e.localizacao || '—'}</span></div>
       <div class="info-row"><span class="label">Setor</span><span>${e.setor || '—'}</span></div>
@@ -113,6 +109,11 @@ function showClientePanel(token) {
       ${p.email ? `<div class="info-row"><span class="label">Email</span><span>${p.email}</span></div>` : ''}
       ${p.telemovel ? `<div class="info-row"><span class="label">Telemóvel</span><span>${p.telemovel}</span></div>` : ''}
       ${outrasTags ? `<div class="info-row"><span class="label">Outras empresas</span><span class="tags-empresas">${outrasTags}</span></div>` : ''}
+    </div>
+
+    <div class="form-actions">
+      <button class="btn-secondary" id="btn-alterar">Alterar</button>
+      <button class="btn-secondary btn-danger" id="btn-desassociar">Desassociar</button>
     </div>
   `;
 
