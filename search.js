@@ -314,11 +314,11 @@ function cardLinkHTML(a, det, customFields) {
     <div${attrs}>
       <div class="card-esq">
         <strong>${esc(nome)}</strong>
+        ${dataStr ? `<span class="card-data">📅 ${esc(dataStr)}</span>` : ''}
         ${nomePessoa ? `<span>${esc(nomePessoa)}</span>` : ''}
       </div>
       ${cfHTML ? `<div class="card-meio">${cfHTML}</div>` : ''}
       <div class="card-dir">
-        ${dataStr ? `<span class="card-data">📅 ${esc(dataStr)}</span>` : ''}
         <span class="card-board">${esc(boardNome)}</span>
         <span class="card-lista">${esc(listaNome)}</span>
         ${estadoHTML}
