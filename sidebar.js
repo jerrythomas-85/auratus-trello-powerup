@@ -58,7 +58,6 @@ function showClientePanel(token) {
   const p = currentPessoa || {};
 
   panel.innerHTML = `
-    <div class="cliente-cols">
     <div class="section">
       <div class="section-header">
         <h2>${e.nome || '—'}</h2>
@@ -79,7 +78,6 @@ function showClientePanel(token) {
       ${p.funcao ? `<div class="info-row"><span class="label">Função</span><span>${p.funcao}</span></div>` : ''}
       ${p.email ? `<div class="info-row"><span class="label">Email</span><span>${p.email}</span></div>` : ''}
       ${p.telemovel ? `<div class="info-row"><span class="label">Telemóvel</span><span>${p.telemovel}</span></div>` : ''}
-    </div>
     </div>
   `;
 
@@ -189,6 +187,7 @@ function showFormNovaPessoa(token) {
     <div class="section">
       <h2>Nova Pessoa</h2>
 
+      <div class="form-grid">
       <div class="form-group">
         <label>Nome *</label>
         <input type="text" id="pes-nome" placeholder="Nome" />
@@ -218,6 +217,7 @@ function showFormNovaPessoa(token) {
       <div class="form-group">
         <label>Telemóvel</label>
         <input type="text" id="pes-telemovel" placeholder="+351 000 000 000" />
+      </div>
       </div>
       <p class="hint">* Email ou Telemóvel — pelo menos um obrigatório</p>
 
@@ -326,6 +326,7 @@ function showFormNovaEmpresaInline(nomeInicial, token) {
         <h3>Nova Empresa</h3>
         <button id="btn-voltar-pesquisa-empresa" class="btn-link">← Voltar à pesquisa</button>
       </div>
+      <div class="form-grid">
       <div class="form-group">
         <label>Nome *</label>
         <input type="text" id="emp-nome" value="${nomeInicial}" placeholder="Nome da empresa" />
@@ -366,6 +367,7 @@ function showFormNovaEmpresaInline(nomeInicial, token) {
       <div class="form-group">
         <label>Telefone</label>
         <input type="text" id="emp-telefone" placeholder="+351 000 000 000" />
+      </div>
       </div>
       <div class="form-group">
         <label>Notas</label>

@@ -75,12 +75,14 @@ h3 {
   color: #5e6c84;
 }
 
-/* Empresa | Contacto lado a lado quando há largura; 1 coluna se estreito. */
-.cliente-cols {
+/* Formulários em 2 colunas quando há largura; 1 coluna se estreito. */
+.form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  align-items: start;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0 12px;
+}
+.form-grid .full {
+  grid-column: 1 / -1;
 }
 
 /* ---- FORMULÁRIOS ---- */
