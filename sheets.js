@@ -53,6 +53,37 @@ const SheetsAPI = {
     return id;
   },
 
+  async updateEmpresa(token, empresa_id, empresa) {
+    const range = `${AURATUS_CONFIG.SHEETS.EMPRESAS}!A2:J`;
+    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
+    const res = await fetch(url, { headers: this.headers(token) });
+    const data = await res.json();
+    if (!data.values) return;
+    const rowIndex = data.values.findIndex(r => r[0] === empresa_id);
+    if (rowIndex === -1) return;
+    const updateRange = `${AURATUS_CONFIG.SHEETS.EMPRESAS}!A${rowIndex + 2}:J${rowIndex + 2}`;
+    const updateURL = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${updateRange}?valueInputOption=RAW`;
+    await fetch(updateURL, {
+      method: 'PUT',
+      headers: this.headers(token),
+      body: JSON.stringify({
+        range: updateRange,
+        values: [[
+          empresa_id,
+          empresa.nome,
+          empresa.localizacao,
+          empresa.setor,
+          empresa.plano || '',
+          empresa.data_inicio || '',
+          empresa.email || '',
+          empresa.telefone || '',
+          empresa.notas || '',
+          empresa.cor || ''
+        ]]
+      })
+    });
+  },
+
   // ---- PESSOAS ----
 
   async getPessoas(token, empresa_id = null) {

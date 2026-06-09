@@ -9,20 +9,7 @@ let currentPessoa = null;
 let allEmpresas = [];
 let allPessoas = [];
 let pessoaEmpresasMap = {};
-
-// Paleta de cores de badge suportadas pelo Trello (nome usado pela API + hex para o seletor).
-const TRELLO_CORES = [
-  { nome: 'green', hex: '#61bd4f' },
-  { nome: 'yellow', hex: '#f2d600' },
-  { nome: 'orange', hex: '#ff9f1a' },
-  { nome: 'red', hex: '#eb5a46' },
-  { nome: 'purple', hex: '#c377e0' },
-  { nome: 'blue', hex: '#0079bf' },
-  { nome: 'sky', hex: '#00c2e0' },
-  { nome: 'lime', hex: '#51e898' },
-  { nome: 'pink', hex: '#ff78cb' },
-  { nome: 'black', hex: '#344563' }
-];
+// TRELLO_CORES e hexDaCor vêm do config.js (partilhados com a vista de pesquisa).
 
 // ---- INIT ----
 
@@ -68,12 +55,6 @@ async function renderPanel() {
   } catch (err) {
     showError(err.message);
   }
-}
-
-// Hex da cor de badge (para o pontinho da etiqueta combinar com a empresa).
-function hexDaCor(nome) {
-  const c = TRELLO_CORES.find(x => x.nome === nome);
-  return c ? c.hex : '#42526e';
 }
 
 // IDs das empresas da pessoa (junção + empresa "principal" antiga), exceto excluirId.
