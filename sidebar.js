@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   t = TrelloPowerUp.iframe();
   if (window.CRM_EMBEDDED) {
     const panel = document.getElementById('crm-panel');
-    new MutationObserver(() => t.sizeTo('#crm-panel')).observe(panel, { childList: true, subtree: true });
+    new MutationObserver(() => t.sizeTo('#crm-panel')).observe(panel, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
   }
   currentCard = await t.card('id', 'name');
   await renderPanel();
