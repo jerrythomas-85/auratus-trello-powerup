@@ -148,12 +148,12 @@ function pessoasEmpresaHTML(empresaId) {
   return `
     <div class="section">
       <h3>Pessoas (${pessoas.length})</h3>
-      ${pessoas.length ? pessoas.map(p => `
+      ${pessoas.length ? `<div class="pessoas-grid">${pessoas.map(p => `
         <div class="resultado-item">
           <strong>${esc(p.nome)} ${esc(p.apelido) || ''}</strong>
           <span>${esc(p.cargo) || ''}${p.email ? ' · ' + esc(p.email) : ''}</span>
         </div>
-      `).join('') : `<p class="empty">Sem pessoas associadas.</p>`}
+      `).join('')}</div>` : `<p class="empty">Sem pessoas associadas.</p>`}
     </div>
   `;
 }
