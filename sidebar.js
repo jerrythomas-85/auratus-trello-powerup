@@ -70,20 +70,27 @@ async function renderPanel() {
   }
 }
 
-// Quantas empresas distintas estão ligadas a esta pessoa (junção + empresa "principal" antiga).
-function numEmpresasDaPessoa(pessoa) {
-  if (!pessoa) return 0;
-  const ids = new Set(pessoaEmpresasMap[pessoa.pessoa_id] || []);
-  if (pessoa.empresa_id) ids.add(pessoa.empresa_id);
-  return ids.size;
+// Hex da cor de badge (para o pontinho da etiqueta combinar com a empresa).
+function hexDaCor(nome) {
+  const c = TRELLO_CORES.find(x => x.nome === nome);
+  return c ? c.hex : '#42526e';
 }
 
-// Etiqueta "+N empresa(s)" se a pessoa pertence a mais do que uma empresa.
-function tagMaisEmpresas(pessoa) {
-  const n = numEmpresasDaPessoa(pessoa);
-  if (n <= 1) return '';
-  const extra = n - 1;
-  return `<span class="tag-mais">+${extra} empresa${extra > 1 ? 's' : ''}</span>`;
+// IDs das empresas da pessoa (junção + empresa "principal" antiga), exceto excluirId.
+function outrasEmpresasDaPessoa(pessoa, excluirId) {
+  if (!pessoa) return [];
+  const ids = new Set(pessoaEmpresasMap[pessoa.pessoa_id] || []);
+  if (pessoa.empresa_id) ids.add(pessoa.empresa_id);
+  return [...ids].filter(id => id && id !== excluirId);
+}
+
+// Etiquetas com o nome (e cor) de cada outra empresa da pessoa.
+function tagsOutrasEmpresas(pessoa, excluirId) {
+  return outrasEmpresasDaPessoa(pessoa, excluirId)
+    .map(id => allEmpresas.find(emp => emp.empresa_id === id))
+    .filter(Boolean)
+    .map(e => `<span class="tag-mais"><span class="tag-dot" style="background:${hexDaCor(e.cor)}"></span>${e.nome}</span>`)
+    .join('');
 }
 
 // ---- PAINEL: CLIENTE ASSOCIADO ----
@@ -92,6 +99,7 @@ function showClientePanel(token) {
   const panel = document.getElementById('crm-panel');
   const e = currentEmpresa || {};
   const p = currentPessoa || {};
+  const outrasTags = tagsOutrasEmpresas(currentPessoa, e.empresa_id);
 
   panel.innerHTML = `
     <div class="section">
@@ -112,11 +120,12 @@ function showClientePanel(token) {
 
     <div class="section">
       <h3>Contacto</h3>
-      <div class="info-row"><span class="label">Nome</span><span>${p.nome || '—'} ${p.apelido || ''} ${tagMaisEmpresas(currentPessoa)}</span></div>
+      <div class="info-row"><span class="label">Nome</span><span>${p.nome || '—'} ${p.apelido || ''}</span></div>
       <div class="info-row"><span class="label">Cargo</span><span>${p.cargo || '—'}</span></div>
       ${p.funcao ? `<div class="info-row"><span class="label">Função</span><span>${p.funcao}</span></div>` : ''}
       ${p.email ? `<div class="info-row"><span class="label">Email</span><span>${p.email}</span></div>` : ''}
       ${p.telemovel ? `<div class="info-row"><span class="label">Telemóvel</span><span>${p.telemovel}</span></div>` : ''}
+      ${outrasTags ? `<div class="info-row"><span class="label">Outras empresas</span><span class="tags-empresas">${outrasTags}</span></div>` : ''}
     </div>
   `;
 
@@ -243,10 +252,12 @@ function renderResultadosPessoa(container, pessoas, token) {
   }
   container.innerHTML = pessoas.map(p => {
     const empresa = allEmpresas.find(e => e.empresa_id === p.empresa_id);
+    const outras = tagsOutrasEmpresas(p, p.empresa_id);
     return `
       <div class="resultado-item" data-pessoa-id="${p.pessoa_id}">
-        <strong>${p.nome} ${p.apelido} ${tagMaisEmpresas(p)}</strong>
+        <strong>${p.nome} ${p.apelido}</strong>
         <span>${empresa ? empresa.nome : '—'} · ${p.cargo}</span>
+        ${outras ? `<span class="tags-empresas">${outras}</span>` : ''}
       </div>
     `;
   }).join('');

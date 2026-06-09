@@ -217,17 +217,32 @@ h3 {
   box-shadow: inset 0 0 0 2px #fff;
 }
 
-/* Etiqueta "+N empresas" quando o contacto pertence a várias empresas */
+/* Etiquetas com o nome das outras empresas do contacto */
+.tags-empresas {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
 .tag-mais {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   background: #dfe1e6;
   color: #42526e;
   font-size: 10px;
   font-weight: 600;
   border-radius: 8px;
   padding: 1px 6px;
-  margin-left: 4px;
   white-space: nowrap;
+}
+
+.tag-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 4px;
 }
 
 /* ---- LOADING ---- */
