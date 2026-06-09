@@ -274,6 +274,14 @@ h3 {
   border-color: #0052cc;
 }
 
+/* Espaçamento entre ficha da empresa, pessoas e cards */
+#empresa-detalhe {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  margin-top: 12px;
+}
+
 .detalhe-cols {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
