@@ -8,6 +8,7 @@ let currentEmpresa = null;
 let currentPessoa = null;
 let allEmpresas = [];
 let allPessoas = [];
+let pessoaEmpresasMap = {};
 
 // Paleta de cores de badge suportadas pelo Trello (nome usado pela API + hex para o seletor).
 const TRELLO_CORES = [
@@ -39,13 +40,18 @@ async function renderPanel() {
   showLoading();
   try {
     const token = await Auth.ensureToken();
-    const [associacao, empresas, pessoas] = await Promise.all([
+    const [associacao, empresas, pessoas, pessoaEmpresas] = await Promise.all([
       SheetsAPI.getCardAssociacao(token, currentCard.id),
       SheetsAPI.getEmpresas(token),
-      SheetsAPI.getPessoas(token)
+      SheetsAPI.getPessoas(token),
+      SheetsAPI.getAllPessoaEmpresas(token).catch(() => [])
     ]);
     allEmpresas = empresas;
     allPessoas = pessoas;
+    pessoaEmpresasMap = {};
+    pessoaEmpresas.forEach(pe => {
+      (pessoaEmpresasMap[pe.pessoa_id] = pessoaEmpresasMap[pe.pessoa_id] || []).push(pe.empresa_id);
+    });
 
     if (!associacao) {
       if (window.CRM_EMBEDDED) {
@@ -62,6 +68,22 @@ async function renderPanel() {
   } catch (err) {
     showError(err.message);
   }
+}
+
+// Quantas empresas distintas estão ligadas a esta pessoa (junção + empresa "principal" antiga).
+function numEmpresasDaPessoa(pessoa) {
+  if (!pessoa) return 0;
+  const ids = new Set(pessoaEmpresasMap[pessoa.pessoa_id] || []);
+  if (pessoa.empresa_id) ids.add(pessoa.empresa_id);
+  return ids.size;
+}
+
+// Etiqueta "+N empresa(s)" se a pessoa pertence a mais do que uma empresa.
+function tagMaisEmpresas(pessoa) {
+  const n = numEmpresasDaPessoa(pessoa);
+  if (n <= 1) return '';
+  const extra = n - 1;
+  return `<span class="tag-mais">+${extra} empresa${extra > 1 ? 's' : ''}</span>`;
 }
 
 // ---- PAINEL: CLIENTE ASSOCIADO ----
@@ -90,7 +112,7 @@ function showClientePanel(token) {
 
     <div class="section">
       <h3>Contacto</h3>
-      <div class="info-row"><span class="label">Nome</span><span>${p.nome || '—'} ${p.apelido || ''}</span></div>
+      <div class="info-row"><span class="label">Nome</span><span>${p.nome || '—'} ${p.apelido || ''} ${tagMaisEmpresas(currentPessoa)}</span></div>
       <div class="info-row"><span class="label">Cargo</span><span>${p.cargo || '—'}</span></div>
       ${p.funcao ? `<div class="info-row"><span class="label">Função</span><span>${p.funcao}</span></div>` : ''}
       ${p.email ? `<div class="info-row"><span class="label">Email</span><span>${p.email}</span></div>` : ''}
@@ -223,7 +245,7 @@ function renderResultadosPessoa(container, pessoas, token) {
     const empresa = allEmpresas.find(e => e.empresa_id === p.empresa_id);
     return `
       <div class="resultado-item" data-pessoa-id="${p.pessoa_id}">
-        <strong>${p.nome} ${p.apelido}</strong>
+        <strong>${p.nome} ${p.apelido} ${tagMaisEmpresas(p)}</strong>
         <span>${empresa ? empresa.nome : '—'} · ${p.cargo}</span>
       </div>
     `;

@@ -217,6 +217,19 @@ h3 {
   box-shadow: inset 0 0 0 2px #fff;
 }
 
+/* Etiqueta "+N empresas" quando o contacto pertence a várias empresas */
+.tag-mais {
+  display: inline-block;
+  background: #dfe1e6;
+  color: #42526e;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 1px 6px;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
 /* ---- LOADING ---- */
 
 .loading {
