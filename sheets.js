@@ -139,6 +139,31 @@ const SheetsAPI = {
     });
   },
 
+  // ---- PESSOAS_EMPRESAS (relação muitos-para-muitos) ----
+
+  async getAllPessoaEmpresas(token) {
+    const range = `${AURATUS_CONFIG.SHEETS.PESSOAS_EMPRESAS}!A2:B`;
+    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
+    const res = await fetch(url, { headers: this.headers(token) });
+    const data = await res.json();
+    if (!data.values) return [];
+    return data.values
+      .filter(r => r[0])
+      .map(r => ({ pessoa_id: r[0], empresa_id: r[1] || '' }));
+  },
+
+  async getPessoaEmpresas(token, pessoa_id) {
+    const todas = await this.getAllPessoaEmpresas(token);
+    return todas.filter(pe => pe.pessoa_id === pessoa_id).map(pe => pe.empresa_id);
+  },
+
+  async addPessoaEmpresa(token, pessoa_id, empresa_id) {
+    const todas = await this.getAllPessoaEmpresas(token);
+    const existe = todas.some(pe => pe.pessoa_id === pessoa_id && pe.empresa_id === empresa_id);
+    if (existe) return;
+    await this._appendRow(token, AURATUS_CONFIG.SHEETS.PESSOAS_EMPRESAS, [pessoa_id, empresa_id]);
+  },
+
   // ---- DESASSOCIAR ----
 
   async deleteCardAssociacao(token, card_id) {

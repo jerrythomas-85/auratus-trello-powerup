@@ -238,6 +238,7 @@ function renderResultadosPessoa(container, pessoas, token) {
       currentEmpresa = empresa;
       showLoading();
       await SheetsAPI.saveCardAssociacao(token, currentCard.id, empresa.empresa_id, pessoa.pessoa_id);
+      try { await SheetsAPI.addPessoaEmpresa(token, pessoa.pessoa_id, empresa.empresa_id); } catch (e) {}
       await setBadgeLocal();
       showClientePanel(token);
     });
@@ -557,6 +558,7 @@ async function handleSaveNovaPessoa(token) {
   allPessoas.push(currentPessoa);
 
   await SheetsAPI.saveCardAssociacao(token, currentCard.id, currentEmpresa.empresa_id, pessoa_id);
+  try { await SheetsAPI.addPessoaEmpresa(token, pessoa_id, currentEmpresa.empresa_id); } catch (e) {}
   await setBadgeLocal();
   showClientePanel(token);
 }
