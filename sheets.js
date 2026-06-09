@@ -93,6 +93,17 @@ const SheetsAPI = {
 
   // ---- CARDS CRM ----
 
+  async getAllCardAssociacoes(token) {
+    const range = `${AURATUS_CONFIG.SHEETS.CARDS_CRM}!A2:D`;
+    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
+    const res = await fetch(url, { headers: this.headers(token) });
+    const data = await res.json();
+    if (!data.values) return [];
+    return data.values
+      .filter(r => r[0])
+      .map(r => ({ card_id: r[0], empresa_id: r[1] || '', pessoa_id: r[2] || '', data_associacao: r[3] || '' }));
+  },
+
   async getCardAssociacao(token, card_id) {
     const range = `${AURATUS_CONFIG.SHEETS.CARDS_CRM}!A2:D`;
     const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
