@@ -89,17 +89,28 @@ function showClientePanel(token) {
   });
 
   document.getElementById('btn-desassociar').addEventListener('click', () => {
-    t.popup({
-      type: 'confirm',
-      title: 'Desassociar contacto',
-      message: 'Remover a associação de contacto deste card? Esta ação não apaga a pessoa nem a empresa, só a ligação ao card.',
-      confirmText: 'Desassociar',
-      confirmStyle: 'danger',
-      onConfirm: async (t) => {
-        await t.closePopup();
-        await handleDesassociar(token);
-      }
-    });
+    showDesassociarConfirm(token);
+  });
+}
+
+function showDesassociarConfirm(token) {
+  const panel = document.getElementById('crm-panel');
+  panel.innerHTML = `
+    <div class="section">
+      <h3>Desassociar contacto</h3>
+      <p>Remover a associação de contacto deste card?</p>
+      <p class="hint">Não apaga a pessoa nem a empresa, só a ligação ao card.</p>
+      <div class="form-actions">
+        <button id="btn-cancel-desassociar" class="btn-secondary">Cancelar</button>
+        <button id="btn-confirm-desassociar" class="btn-primary">Desassociar</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('btn-cancel-desassociar').addEventListener('click', () => {
+    showClientePanel(token);
+  });
+  document.getElementById('btn-confirm-desassociar').addEventListener('click', () => {
+    handleDesassociar(token);
   });
 }
 
