@@ -137,6 +137,47 @@ const SheetsAPI = {
     });
   },
 
+  // ---- DESASSOCIAR ----
+
+  async deleteCardAssociacao(token, card_id) {
+    const range = `${AURATUS_CONFIG.SHEETS.CARDS_CRM}!A2:D`;
+    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
+    const res = await fetch(url, { headers: this.headers(token) });
+    const data = await res.json();
+    if (!data.values) return;
+    const rowIndex = data.values.findIndex(r => r[0] === card_id);
+    if (rowIndex === -1) return;
+    const gid = await this._getSheetGid(token, AURATUS_CONFIG.SHEETS.CARDS_CRM);
+    if (gid == null) return;
+    // rowIndex 0 = 1ª linha de dados (linha 2 da folha) = índice 1 (0-based, inclui cabeçalho)
+    const startIndex = rowIndex + 1;
+    const batchURL = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}:batchUpdate`;
+    await fetch(batchURL, {
+      method: 'POST',
+      headers: this.headers(token),
+      body: JSON.stringify({
+        requests: [{
+          deleteDimension: {
+            range: { sheetId: gid, dimension: 'ROWS', startIndex, endIndex: startIndex + 1 }
+          }
+        }]
+      })
+    });
+  },
+
+  async _getSheetGid(token, title) {
+    if (!this._gids) {
+      const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}?fields=sheets(properties(sheetId,title))`;
+      const res = await fetch(url, { headers: this.headers(token) });
+      const data = await res.json();
+      this._gids = {};
+      (data.sheets || []).forEach(s => {
+        this._gids[s.properties.title] = s.properties.sheetId;
+      });
+    }
+    return this._gids[title];
+  },
+
   // ---- UTILITÁRIO ----
 
   async _appendRow(token, sheet, row) {

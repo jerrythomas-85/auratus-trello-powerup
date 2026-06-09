@@ -187,6 +187,15 @@ h3 {
   text-decoration: underline;
 }
 
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-danger {
+  color: #de350b;
+}
+
 /* ---- LOADING ---- */
 
 .loading {

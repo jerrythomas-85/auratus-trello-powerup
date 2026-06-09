@@ -61,7 +61,10 @@ function showClientePanel(token) {
     <div class="section">
       <div class="section-header">
         <h2>${e.nome || '—'}</h2>
-        <button class="btn-link" id="btn-alterar">Alterar</button>
+        <span class="header-actions">
+          <button class="btn-link" id="btn-alterar">Alterar</button>
+          <button class="btn-link btn-danger" id="btn-desassociar">Desassociar</button>
+        </span>
       </div>
       <div class="info-row"><span class="label">Localização</span><span>${e.localizacao || '—'}</span></div>
       <div class="info-row"><span class="label">Setor</span><span>${e.setor || '—'}</span></div>
@@ -84,6 +87,37 @@ function showClientePanel(token) {
   document.getElementById('btn-alterar').addEventListener('click', () => {
     showSearchPessoa(token);
   });
+
+  document.getElementById('btn-desassociar').addEventListener('click', () => {
+    t.popup({
+      type: 'confirm',
+      title: 'Desassociar contacto',
+      message: 'Remover a associação de contacto deste card? Esta ação não apaga a pessoa nem a empresa, só a ligação ao card.',
+      confirmText: 'Desassociar',
+      confirmStyle: 'danger',
+      onConfirm: async (t) => {
+        await t.closePopup();
+        await handleDesassociar(token);
+      }
+    });
+  });
+}
+
+async function handleDesassociar(token) {
+  showLoading();
+  try {
+    await SheetsAPI.deleteCardAssociacao(token, currentCard.id);
+    await clearBadgeLocal();
+    currentEmpresa = null;
+    currentPessoa = null;
+    if (window.CRM_EMBEDDED) {
+      showAssociarButton(token);
+    } else {
+      showSearchPessoa(token);
+    }
+  } catch (err) {
+    showError(err.message);
+  }
 }
 
 // ---- PAINEL EMBUTIDO: SEM CONTACTO (Estado A) ----
@@ -107,6 +141,13 @@ async function setBadgeLocal() {
     if (!currentPessoa || !currentEmpresa) return;
     const pessoa = ((currentPessoa.nome || '') + ' ' + (currentPessoa.apelido || '')).trim();
     await t.set('card', 'shared', 'crmBadge', { pessoa, empresa: (currentEmpresa.nome || '').toUpperCase() });
+  } catch (e) {}
+}
+
+// Remove o badge local do card (ao desassociar). Nunca rebenta o fluxo.
+async function clearBadgeLocal() {
+  try {
+    await t.remove('card', 'shared', 'crmBadge');
   } catch (e) {}
 }
 
