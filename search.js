@@ -136,6 +136,9 @@ function mostrarDetalhePessoa(pessoaId) {
     empresasPessoaHTML(pessoaId) +
     `<div class="section" id="cards-section-pessoa"><h3>Cards</h3><p class="empty">A carregar cards...</p></div>`;
 
+  const btnEditar = document.getElementById('btn-editar-pessoa');
+  if (btnEditar) btnEditar.addEventListener('click', () => editarPessoaForm(pessoaId));
+
   detalhe.querySelectorAll('.empresa-filtro').forEach(el => {
     el.addEventListener('click', () => {
       detalhe.querySelectorAll('.empresa-filtro').forEach(x => x.classList.remove('selecionado'));
@@ -159,6 +162,7 @@ function fichaPessoaHTML(pessoa) {
     <div class="section ficha-empresa">
       <div class="section-header">
         <h2>${esc(nomeCompleto)}</h2>
+        <button class="btn-link" id="btn-editar-pessoa" title="Editar pessoa">✏️ Editar</button>
       </div>
       <div class="form-grid">
         ${campos.join('')}
@@ -190,6 +194,59 @@ function empresasPessoaHTML(pessoaId) {
       `).join('')}</div>` : `<p class="empty">Sem empresas associadas.</p>`}
     </div>
   `;
+}
+
+function editarPessoaForm(pessoaId) {
+  const pessoa = dados.pessoas.find(p => p.pessoa_id === pessoaId);
+  if (!pessoa) return;
+  const detalhe = document.getElementById('pessoa-detalhe');
+  detalhe.innerHTML = `
+    <div class="section">
+      <h2>Editar pessoa</h2>
+      <div class="form-grid">
+        <div class="form-group"><label>Nome *</label><input type="text" id="ed-p-nome" value="${esc(pessoa.nome)}" /></div>
+        <div class="form-group"><label>Apelido</label><input type="text" id="ed-p-apelido" value="${esc(pessoa.apelido)}" /></div>
+        <div class="form-group"><label>Cargo</label><input type="text" id="ed-p-cargo" value="${esc(pessoa.cargo)}" /></div>
+        <div class="form-group"><label>Função</label><input type="text" id="ed-p-funcao" value="${esc(pessoa.funcao)}" /></div>
+        <div class="form-group"><label>Email</label><input type="email" id="ed-p-email" value="${esc(pessoa.email)}" /></div>
+        <div class="form-group"><label>Telemóvel</label><input type="text" id="ed-p-telemovel" value="${esc(pessoa.telemovel)}" /></div>
+      </div>
+      <span class="field-error-msg" id="ed-p-aviso"></span>
+      <div class="form-actions">
+        <button id="ed-p-cancelar" class="btn-secondary">Cancelar</button>
+        <button id="ed-p-guardar" class="btn-primary">Guardar</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('ed-p-cancelar').addEventListener('click', () => mostrarDetalhePessoa(pessoaId));
+  document.getElementById('ed-p-guardar').addEventListener('click', () => guardarPessoa(pessoaId));
+}
+
+async function guardarPessoa(pessoaId) {
+  const nome = val('ed-p-nome').trim();
+  if (!nome) {
+    document.getElementById('ed-p-aviso').textContent = 'O nome é obrigatório.';
+    return;
+  }
+  const atualizada = {
+    nome,
+    apelido: val('ed-p-apelido').trim(),
+    cargo: val('ed-p-cargo').trim(),
+    funcao: val('ed-p-funcao').trim(),
+    email: val('ed-p-email').trim(),
+    telemovel: val('ed-p-telemovel').trim()
+  };
+  const detalhe = document.getElementById('pessoa-detalhe');
+  detalhe.innerHTML = `<p class="empty">A guardar...</p>`;
+  try {
+    await SheetsAPI.updatePessoa(token, pessoaId, atualizada);
+    const idx = dados.pessoas.findIndex(p => p.pessoa_id === pessoaId);
+    if (idx !== -1) dados.pessoas[idx] = { ...dados.pessoas[idx], ...atualizada };
+    mostrarDetalhePessoa(pessoaId);
+  } catch (err) {
+    detalhe.innerHTML = `<p class="empty">Erro ao guardar: ${esc(err.message)}</p>`;
+  }
 }
 
 // Data de criação de um card: os primeiros 8 hex do ID do Trello são o timestamp Unix.

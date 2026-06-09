@@ -275,7 +275,8 @@ h3 {
 }
 
 /* Espaçamento entre ficha da empresa, pessoas e cards */
-#empresa-detalhe {
+#empresa-detalhe,
+#pessoa-detalhe {
   display: flex;
   flex-direction: column;
   gap: 28px;

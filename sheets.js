@@ -106,6 +106,36 @@ const SheetsAPI = {
     return pessoas;
   },
 
+  async updatePessoa(token, pessoa_id, pessoa) {
+    const range = `${AURATUS_CONFIG.SHEETS.PESSOAS}!A2:H`;
+    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
+    const res = await fetch(url, { headers: this.headers(token) });
+    const data = await res.json();
+    if (!data.values) return;
+    const rowIndex = data.values.findIndex(r => r[0] === pessoa_id);
+    if (rowIndex === -1) return;
+    const empresa_id = data.values[rowIndex][1] || '';
+    const updateRange = `${AURATUS_CONFIG.SHEETS.PESSOAS}!A${rowIndex + 2}:H${rowIndex + 2}`;
+    const updateURL = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${updateRange}?valueInputOption=RAW`;
+    await fetch(updateURL, {
+      method: 'PUT',
+      headers: this.headers(token),
+      body: JSON.stringify({
+        range: updateRange,
+        values: [[
+          pessoa_id,
+          empresa_id,
+          pessoa.nome,
+          pessoa.apelido || '',
+          pessoa.cargo || '',
+          pessoa.funcao || '',
+          pessoa.email || '',
+          pessoa.telemovel || ''
+        ]]
+      })
+    });
+  },
+
   async createPessoa(token, pessoa) {
     const id = 'PES_' + Date.now();
     const row = [
