@@ -2,18 +2,43 @@
 // CLIENT.JS — Inicialização do Power-Up Trello
 // ============================================================
 
+const ICON = 'https://cdn-icons-png.flaticon.com/512/561/561127.png';
+
+function abrirPesquisa(t) {
+  return t.modal({
+    title: 'Pesquisa CRM',
+    url: './search.html',
+    fullscreen: true
+  });
+}
+
 TrelloPowerUp.initialize({
-  'card-buttons': function(t, options) {
+  'board-buttons': function(t, options) {
     return [{
-      icon: 'https://cdn-icons-png.flaticon.com/512/561/561127.png',
-      text: 'CRM Auratus',
-      callback: function(t) {
-        return t.popup({
-          title: 'CRM Auratus',
-          url: './sidebar.html',
-          height: 600
-        });
-      }
+      icon: { dark: ICON, light: ICON },
+      text: 'Pesquisa CRM',
+      callback: abrirPesquisa
     }];
+  },
+
+  'card-buttons': function(t, options) {
+    return [
+      {
+        icon: ICON,
+        text: 'CRM Auratus',
+        callback: function(t) {
+          return t.popup({
+            title: 'CRM Auratus',
+            url: './sidebar.html',
+            height: 600
+          });
+        }
+      },
+      {
+        icon: ICON,
+        text: 'Pesquisa CRM',
+        callback: abrirPesquisa
+      }
+    ];
   }
 });
