@@ -41,8 +41,8 @@ TrelloPowerUp.initialize({
       icon: ICON,
       content: {
         type: 'iframe',
-        url: t.signUrl('./search.html'),
-        height: 400
+        url: t.signUrl('./card-launcher.html'),
+        height: 72
       }
     };
   }
