@@ -107,8 +107,7 @@ function showClientePanel(token) {
     </div>
 
     <div class="section">
-      <h3>Contacto</h3>
-      <div class="info-row"><span class="label">Nome</span><span>${p.nome || '—'} ${p.apelido || ''}</span></div>
+      <h3 class="contacto-nome">👤 ${p.nome || '—'} ${p.apelido || ''}</h3>
       <div class="info-row"><span class="label">Cargo</span><span>${p.cargo || '—'}</span></div>
       ${p.funcao ? `<div class="info-row"><span class="label">Função</span><span>${p.funcao}</span></div>` : ''}
       ${p.email ? `<div class="info-row"><span class="label">Email</span><span>${p.email}</span></div>` : ''}
