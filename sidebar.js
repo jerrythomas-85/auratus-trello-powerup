@@ -230,19 +230,215 @@ function renderResultadosPessoa(container, pessoas, token) {
   }).join('');
 
   container.querySelectorAll('.resultado-item').forEach(item => {
-    item.addEventListener('click', async () => {
+    item.addEventListener('click', () => {
       const pessoa_id = item.dataset.pessoaId;
       const pessoa = allPessoas.find(p => p.pessoa_id === pessoa_id);
-      const empresa = allEmpresas.find(e => e.empresa_id === pessoa.empresa_id);
-      currentPessoa = pessoa;
-      currentEmpresa = empresa;
-      showLoading();
-      await SheetsAPI.saveCardAssociacao(token, currentCard.id, empresa.empresa_id, pessoa.pessoa_id);
-      try { await SheetsAPI.addPessoaEmpresa(token, pessoa.pessoa_id, empresa.empresa_id); } catch (e) {}
-      await setBadgeLocal();
-      showClientePanel(token);
+      showSelecionarEmpresa(token, pessoa);
     });
   });
+}
+
+// ---- BLOCO REUTILIZÁVEL: PESQUISAR / CRIAR EMPRESA ----
+
+function htmlBlocoEmpresa() {
+  return `
+      <div id="bloco-empresa">
+        <div class="form-group">
+          <label>Empresa</label>
+          <input type="text" id="search-empresa" placeholder="Pesquisar empresa..." autocomplete="off" />
+        </div>
+        <div id="resultados-empresa" class="resultados">
+          <p class="empty">Escreve para pesquisar...</p>
+        </div>
+      </div>
+      <div id="form-nova-empresa-inline" style="display:none;"></div>
+  `;
+}
+
+function wireBlocoEmpresa(token) {
+  const inputEmpresa = document.getElementById('search-empresa');
+  const resultadosEmpresa = document.getElementById('resultados-empresa');
+  if (!inputEmpresa || !resultadosEmpresa) return;
+
+  inputEmpresa.addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    if (q.length === 0) {
+      resultadosEmpresa.innerHTML = `<p class="empty">Escreve para pesquisar...</p>`;
+      const existeBtnCriar = document.getElementById('btn-criar-empresa-inline');
+      if (existeBtnCriar) existeBtnCriar.remove();
+      return;
+    }
+    const filtradas = allEmpresas.filter(e => e.nome.toLowerCase().includes(q));
+    renderResultadosEmpresa(resultadosEmpresa, filtradas, token);
+    const match = allEmpresas.find(e => e.nome.toLowerCase() === q);
+    const existeBtnCriar = document.getElementById('btn-criar-empresa-inline');
+    if (!match) {
+      if (!existeBtnCriar) {
+        const btn = document.createElement('button');
+        btn.id = 'btn-criar-empresa-inline';
+        btn.className = 'btn-secondary';
+        btn.style.marginTop = '6px';
+        btn.style.width = '100%';
+        btn.textContent = `+ Criar "${this.value}"`;
+        resultadosEmpresa.after(btn);
+        btn.addEventListener('click', () => {
+          showFormNovaEmpresaInline(document.getElementById('search-empresa').value, token);
+        });
+      } else {
+        existeBtnCriar.textContent = `+ Criar "${this.value}"`;
+      }
+    } else if (existeBtnCriar) {
+      existeBtnCriar.remove();
+    }
+  });
+}
+
+// Resolve a empresa a usar: cria a inline (se o formulário estiver aberto) ou usa a selecionada.
+async function resolverEmpresa(token) {
+  const formInline = document.getElementById('form-nova-empresa-inline');
+  const inlineVisivel = formInline && formInline.style.display !== 'none' && formInline.innerHTML !== '';
+
+  if (inlineVisivel) {
+    const empDados = {
+      nome: (document.getElementById('emp-nome') || {value:''}).value.trim(),
+      localizacao: (document.getElementById('emp-localizacao') || {value:''}).value.trim(),
+      setor: (document.getElementById('emp-setor') || {value:''}).value,
+      plano: (document.getElementById('emp-plano') || {value:''}).value,
+      data_inicio: (document.getElementById('emp-data-inicio') || {value:''}).value,
+      email: (document.getElementById('emp-email') || {value:''}).value.trim(),
+      telefone: (document.getElementById('emp-telefone') || {value:''}).value.trim(),
+      notas: (document.getElementById('emp-notas') || {value:''}).value.trim(),
+      cor: (document.querySelector('#emp-cor-palette .cor-swatch.selecionado') || { dataset: {} }).dataset.cor || 'blue'
+    };
+    if (!empDados.nome || !empDados.localizacao || !empDados.setor) {
+      if (!empDados.nome) showFieldError('emp-nome', 'Obrigatório');
+      if (!empDados.localizacao) showFieldError('emp-localizacao', 'Obrigatório');
+      if (!empDados.setor) showFieldError('emp-setor', 'Obrigatório');
+      return { ok: false };
+    }
+    showLoading();
+    const plano = empDados.setor === 'Restaurante' ? empDados.plano : '';
+    const data_inicio = (plano && plano !== 'Sem Avença') ? empDados.data_inicio : '';
+    const empresa_id = await SheetsAPI.createEmpresa(token, {
+      nome: empDados.nome,
+      localizacao: empDados.localizacao,
+      setor: empDados.setor,
+      plano,
+      data_inicio,
+      email: empDados.email,
+      telefone: empDados.telefone,
+      notas: empDados.notas,
+      cor: empDados.cor
+    });
+    const empresa = { empresa_id, nome: empDados.nome, localizacao: empDados.localizacao, setor: empDados.setor, plano, cor: empDados.cor };
+    allEmpresas.push(empresa);
+    currentEmpresa = empresa;
+    return { ok: true, empresa };
+  }
+
+  if (!currentEmpresa) {
+    showFieldError('search-empresa', 'Seleciona ou cria uma empresa.');
+    return { ok: false };
+  }
+  return { ok: true, empresa: currentEmpresa };
+}
+
+// ---- PASSO: ESCOLHER EMPRESA PARA UMA PESSOA EXISTENTE ----
+
+async function showSelecionarEmpresa(token, pessoa) {
+  currentPessoa = pessoa;
+  currentEmpresa = null;
+  showLoading();
+
+  let empresaIds = [];
+  try {
+    empresaIds = await SheetsAPI.getPessoaEmpresas(token, pessoa.pessoa_id);
+  } catch (e) {}
+  if (pessoa.empresa_id && !empresaIds.includes(pessoa.empresa_id)) {
+    empresaIds = empresaIds.concat([pessoa.empresa_id]);
+  }
+  const empresas = empresaIds
+    .map(id => allEmpresas.find(e => e.empresa_id === id))
+    .filter(Boolean);
+
+  const panel = document.getElementById('crm-panel');
+  panel.innerHTML = `
+    <div class="section">
+      <div class="section-header">
+        <h2>${pessoa.nome} ${pessoa.apelido || ''}</h2>
+        <button class="btn-link" id="btn-voltar-pessoa">← Voltar</button>
+      </div>
+      <h3>Empresa para este card</h3>
+      <div id="empresas-pessoa" class="resultados">
+        ${empresas.length ? empresas.map(e => `
+          <div class="resultado-item" data-empresa-id="${e.empresa_id}">
+            <strong>${e.nome}</strong>
+            <span>${e.localizacao || ''}${e.setor ? ' · ' + e.setor : ''}</span>
+          </div>
+        `).join('') : `<p class="empty">Esta pessoa ainda não tem empresa. Associa uma abaixo.</p>`}
+      </div>
+      <button id="btn-outra-empresa" class="btn-secondary" style="margin-top:8px;">+ Associar a outra empresa</button>
+      <div id="bloco-outra-empresa" style="display:none;margin-top:12px;">
+        ${htmlBlocoEmpresa()}
+      </div>
+      <span class="field-error-msg" id="aviso-empresa"></span>
+      <div class="form-actions" style="margin-top:16px;">
+        <button id="btn-guardar-empresa" class="btn-primary">Guardar</button>
+      </div>
+    </div>
+  `;
+
+  if (empresas.length === 1) {
+    currentEmpresa = empresas[0];
+    const item = panel.querySelector('#empresas-pessoa .resultado-item');
+    if (item) item.classList.add('selecionado');
+  }
+
+  if (empresas.length === 0) {
+    document.getElementById('bloco-outra-empresa').style.display = 'block';
+  }
+
+  panel.querySelectorAll('#empresas-pessoa .resultado-item').forEach(item => {
+    item.addEventListener('click', () => {
+      panel.querySelectorAll('#empresas-pessoa .resultado-item').forEach(i => i.classList.remove('selecionado'));
+      item.classList.add('selecionado');
+      currentEmpresa = allEmpresas.find(e => e.empresa_id === item.dataset.empresaId);
+    });
+  });
+
+  document.getElementById('btn-voltar-pessoa').addEventListener('click', () => {
+    showSearchPessoa(token);
+  });
+
+  document.getElementById('btn-outra-empresa').addEventListener('click', () => {
+    document.getElementById('bloco-outra-empresa').style.display = 'block';
+    panel.querySelectorAll('#empresas-pessoa .resultado-item').forEach(i => i.classList.remove('selecionado'));
+    currentEmpresa = null;
+  });
+
+  wireBlocoEmpresa(token);
+
+  document.getElementById('btn-guardar-empresa').addEventListener('click', () => {
+    handleGuardarEmpresaPessoa(token);
+  });
+}
+
+async function handleGuardarEmpresaPessoa(token) {
+  const blocoOutra = document.getElementById('bloco-outra-empresa');
+  const outraAberta = blocoOutra && blocoOutra.style.display !== 'none';
+  if (!currentEmpresa && !outraAberta) {
+    const aviso = document.getElementById('aviso-empresa');
+    if (aviso) aviso.textContent = 'Escolhe uma empresa ou associa uma nova.';
+    return;
+  }
+  const resEmp = await resolverEmpresa(token);
+  if (!resEmp.ok) return;
+  const empresa = resEmp.empresa;
+  showLoading();
+  await SheetsAPI.saveCardAssociacao(token, currentCard.id, empresa.empresa_id, currentPessoa.pessoa_id);
+  try { await SheetsAPI.addPessoaEmpresa(token, currentPessoa.pessoa_id, empresa.empresa_id); } catch (e) {}
+  await setBadgeLocal();
+  showClientePanel(token);
 }
 
 // ---- FORMULÁRIO: NOVA PESSOA ----
@@ -288,16 +484,7 @@ function showFormNovaPessoa(token) {
       </div>
       <p class="hint">* Email ou Telemóvel — pelo menos um obrigatório</p>
 
-      <div id="bloco-empresa" style="margin-top:16px;">
-        <div class="form-group">
-          <label>Empresa *</label>
-          <input type="text" id="search-empresa" placeholder="Pesquisar empresa..." autocomplete="off" />
-        </div>
-        <div id="resultados-empresa" class="resultados">
-          <p class="empty">Escreve para pesquisar...</p>
-        </div>
-      </div>
-      <div id="form-nova-empresa-inline" style="display:none;"></div>
+      ${htmlBlocoEmpresa()}
 
       <div class="form-actions" style="margin-top:16px;">
         <button id="btn-back-nova-pessoa" class="btn-secondary">← Voltar</button>
@@ -315,40 +502,7 @@ function showFormNovaPessoa(token) {
     showSearchPessoa(token);
   });
 
-  const inputEmpresa = document.getElementById('search-empresa');
-  const resultadosEmpresa = document.getElementById('resultados-empresa');
-
-  inputEmpresa.addEventListener('input', function() {
-    const q = this.value.toLowerCase();
-    if (q.length === 0) {
-      resultadosEmpresa.innerHTML = `<p class="empty">Escreve para pesquisar...</p>`;
-      const existeBtnCriar = document.getElementById('btn-criar-empresa-inline');
-      if (existeBtnCriar) existeBtnCriar.remove();
-      return;
-    }
-    const filtradas = allEmpresas.filter(e => e.nome.toLowerCase().includes(q));
-    renderResultadosEmpresa(resultadosEmpresa, filtradas, token);
-    const match = allEmpresas.find(e => e.nome.toLowerCase() === q);
-    const existeBtnCriar = document.getElementById('btn-criar-empresa-inline');
-    if (!match) {
-      if (!existeBtnCriar) {
-        const btn = document.createElement('button');
-        btn.id = 'btn-criar-empresa-inline';
-        btn.className = 'btn-secondary';
-        btn.style.marginTop = '6px';
-        btn.style.width = '100%';
-        btn.textContent = `+ Criar "${this.value}"`;
-        resultadosEmpresa.after(btn);
-        btn.addEventListener('click', () => {
-          showFormNovaEmpresaInline(document.getElementById('search-empresa').value, token);
-        });
-      } else {
-        existeBtnCriar.textContent = `+ Criar "${this.value}"`;
-      }
-    } else if (existeBtnCriar) {
-      existeBtnCriar.remove();
-    }
-  });
+  wireBlocoEmpresa(token);
 
   document.getElementById('btn-save-pessoa').addEventListener('click', async () => {
     await handleSaveNovaPessoa(token);
@@ -482,24 +636,6 @@ async function handleSaveNovaPessoa(token) {
   const telemovel = (document.getElementById('pes-telemovel') || {value:''}).value.trim();
   const funcao = (document.getElementById('pes-funcao') || {value:''}).value.trim();
 
-  const formInline = document.getElementById('form-nova-empresa-inline');
-  const inlineVisivel = formInline && formInline.style.display !== 'none' && formInline.innerHTML !== '';
-
-  let empDados = null;
-  if (inlineVisivel) {
-    empDados = {
-      nome: (document.getElementById('emp-nome') || {value:''}).value.trim(),
-      localizacao: (document.getElementById('emp-localizacao') || {value:''}).value.trim(),
-      setor: (document.getElementById('emp-setor') || {value:''}).value,
-      plano: (document.getElementById('emp-plano') || {value:''}).value,
-      data_inicio: (document.getElementById('emp-data-inicio') || {value:''}).value,
-      email: (document.getElementById('emp-email') || {value:''}).value.trim(),
-      telefone: (document.getElementById('emp-telefone') || {value:''}).value.trim(),
-      notas: (document.getElementById('emp-notas') || {value:''}).value.trim(),
-      cor: (document.querySelector('#emp-cor-palette .cor-swatch.selecionado') || { dataset: {} }).dataset.cor || 'blue'
-    };
-  }
-
   if (!nome || !apelido || !cargo) {
     if (!nome) showFieldError('pes-nome', 'Obrigatório');
     if (!apelido) showFieldError('pes-apelido', 'Obrigatório');
@@ -512,40 +648,14 @@ async function handleSaveNovaPessoa(token) {
     return;
   }
 
-  if (!currentEmpresa && !inlineVisivel) {
-    showFieldError('search-empresa', 'Seleciona ou cria uma empresa.');
-    return;
-  }
-
-  if (inlineVisivel && empDados && (!empDados.nome || !empDados.localizacao || !empDados.setor)) {
-    if (!empDados.nome) showFieldError('emp-nome', 'Obrigatório');
-    if (!empDados.localizacao) showFieldError('emp-localizacao', 'Obrigatório');
-    if (!empDados.setor) showFieldError('emp-setor', 'Obrigatório');
-    return;
-  }
+  const resEmp = await resolverEmpresa(token);
+  if (!resEmp.ok) return;
+  const empresa = resEmp.empresa;
 
   showLoading();
 
-  if (inlineVisivel && !currentEmpresa && empDados) {
-    const plano = empDados.setor === 'Restaurante' ? empDados.plano : '';
-    const data_inicio = (plano && plano !== 'Sem Avença') ? empDados.data_inicio : '';
-    const empresa_id = await SheetsAPI.createEmpresa(token, {
-      nome: empDados.nome,
-      localizacao: empDados.localizacao,
-      setor: empDados.setor,
-      plano,
-      data_inicio,
-      email: empDados.email,
-      telefone: empDados.telefone,
-      notas: empDados.notas,
-      cor: empDados.cor
-    });
-    currentEmpresa = { empresa_id, nome: empDados.nome, localizacao: empDados.localizacao, setor: empDados.setor, plano, cor: empDados.cor };
-    allEmpresas.push(currentEmpresa);
-  }
-
   const pessoa_id = await SheetsAPI.createPessoa(token, {
-    empresa_id: currentEmpresa.empresa_id,
+    empresa_id: empresa.empresa_id,
     nome,
     apelido,
     cargo,
@@ -556,9 +666,10 @@ async function handleSaveNovaPessoa(token) {
 
   currentPessoa = { pessoa_id, nome, apelido, cargo, email, telemovel };
   allPessoas.push(currentPessoa);
+  currentEmpresa = empresa;
 
-  await SheetsAPI.saveCardAssociacao(token, currentCard.id, currentEmpresa.empresa_id, pessoa_id);
-  try { await SheetsAPI.addPessoaEmpresa(token, pessoa_id, currentEmpresa.empresa_id); } catch (e) {}
+  await SheetsAPI.saveCardAssociacao(token, currentCard.id, empresa.empresa_id, pessoa_id);
+  try { await SheetsAPI.addPessoaEmpresa(token, pessoa_id, empresa.empresa_id); } catch (e) {}
   await setBadgeLocal();
   showClientePanel(token);
 }
