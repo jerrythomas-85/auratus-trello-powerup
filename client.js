@@ -12,6 +12,16 @@ function abrirPesquisa(t) {
   });
 }
 
+// Lê o badge guardado localmente no card (t.set feito ao associar).
+// Rápido: sem OAuth e sem ir à Google Sheet.
+function crmBadges(t) {
+  return t.get('card', 'shared', 'crmBadge').then(function(badge) {
+    if (!badge || !badge.pessoa) return [];
+    const texto = badge.empresa ? badge.pessoa + ' · ' + badge.empresa : badge.pessoa;
+    return [{ text: texto, color: 'blue' }];
+  });
+}
+
 TrelloPowerUp.initialize({
   'card-buttons': function(t, options) {
     return [{
@@ -37,13 +47,25 @@ TrelloPowerUp.initialize({
 
   'card-back-section': function(t, options) {
     return {
-      title: 'Pesquisa CRM',
+      title: 'CRM Auratus',
       icon: ICON,
       content: {
         type: 'iframe',
-        url: t.signUrl('./card-launcher.html'),
-        height: 72
+        url: t.signUrl('./card-section.html'),
+        height: 80
+      },
+      action: {
+        text: '🔍 Pesquisar',
+        callback: abrirPesquisa
       }
     };
+  },
+
+  'card-badges': function(t, options) {
+    return crmBadges(t);
+  },
+
+  'card-detail-badges': function(t, options) {
+    return crmBadges(t);
   }
 });

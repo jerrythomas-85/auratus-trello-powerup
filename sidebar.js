@@ -13,6 +13,10 @@ let allPessoas = [];
 
 document.addEventListener('DOMContentLoaded', async () => {
   t = TrelloPowerUp.iframe();
+  if (window.CRM_EMBEDDED) {
+    const panel = document.getElementById('crm-panel');
+    new MutationObserver(() => t.sizeTo('#crm-panel')).observe(panel, { childList: true, subtree: true });
+  }
   currentCard = await t.card('id', 'name');
   await renderPanel();
 });
@@ -30,10 +34,15 @@ async function renderPanel() {
     allPessoas = pessoas;
 
     if (!associacao) {
-      showSearchPessoa(token);
+      if (window.CRM_EMBEDDED) {
+        showAssociarButton(token);
+      } else {
+        showSearchPessoa(token);
+      }
     } else {
       currentEmpresa = empresas.find(e => e.empresa_id === associacao.empresa_id);
       currentPessoa = pessoas.find(p => p.pessoa_id === associacao.pessoa_id);
+      await setBadgeLocal();
       showClientePanel(token);
     }
   } catch (err) {
@@ -70,23 +79,35 @@ function showClientePanel(token) {
       ${p.email ? `<div class="info-row"><span class="label">Email</span><span>${p.email}</span></div>` : ''}
       ${p.telemovel ? `<div class="info-row"><span class="label">Telemóvel</span><span>${p.telemovel}</span></div>` : ''}
     </div>
-
-    <div class="section">
-      <h3>Histórico de Emails</h3>
-      <div id="email-list"><p class="empty">A carregar emails...</p></div>
-    </div>
-
-    <div class="section">
-      <h3>Enviar Email</h3>
-      <input type="text" id="email-subject" placeholder="Assunto" />
-      <textarea id="email-body" placeholder="Mensagem..."></textarea>
-      <button id="send-btn" class="btn-primary">Enviar</button>
-    </div>
   `;
 
   document.getElementById('btn-alterar').addEventListener('click', () => {
     showSearchPessoa(token);
   });
+}
+
+// ---- PAINEL EMBUTIDO: SEM CONTACTO (Estado A) ----
+
+function showAssociarButton(token) {
+  const panel = document.getElementById('crm-panel');
+  panel.innerHTML = `
+    <div class="section">
+      <button id="btn-associar" class="btn-primary">Associar pessoa</button>
+    </div>
+  `;
+  document.getElementById('btn-associar').addEventListener('click', () => {
+    showSearchPessoa(token);
+  });
+}
+
+// Guarda nome da pessoa + empresa no próprio card (storage local do Power-Up),
+// para o badge ler sem OAuth nem ir à Sheet. Nunca rebenta o fluxo de associação.
+async function setBadgeLocal() {
+  try {
+    if (!currentPessoa || !currentEmpresa) return;
+    const pessoa = ((currentPessoa.nome || '') + ' ' + (currentPessoa.apelido || '')).trim();
+    await t.set('card', 'shared', 'crmBadge', { pessoa, empresa: currentEmpresa.nome || '' });
+  } catch (e) {}
 }
 
 // ---- PESQUISA DE PESSOA ----
@@ -151,6 +172,7 @@ function renderResultadosPessoa(container, pessoas, token) {
       currentEmpresa = empresa;
       showLoading();
       await SheetsAPI.saveCardAssociacao(token, currentCard.id, empresa.empresa_id, pessoa.pessoa_id);
+      await setBadgeLocal();
       showClientePanel(token);
     });
   });
@@ -450,6 +472,7 @@ async function handleSaveNovaPessoa(token) {
   allPessoas.push(currentPessoa);
 
   await SheetsAPI.saveCardAssociacao(token, currentCard.id, currentEmpresa.empresa_id, pessoa_id);
+  await setBadgeLocal();
   showClientePanel(token);
 }
 
