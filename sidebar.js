@@ -91,15 +91,18 @@ function showClientePanel(token) {
 
   panel.innerHTML = `
     <div class="section ficha-empresa" style="background:${cor}1a;border-color:${cor}66;margin-bottom:8px;">
-      <div class="section-header">
+      <div class="section-header" id="empresa-header" style="cursor:pointer;margin-bottom:0;">
         <h2>🏢 ${e.nome || '—'}</h2>
+        <button class="btn-link" id="btn-expandir-empresa" title="Ver dados da empresa">▾</button>
       </div>
-      <div class="info-row"><span class="label">Localização</span><span>${e.localizacao || '—'}</span></div>
-      <div class="info-row"><span class="label">Setor</span><span>${e.setor || '—'}</span></div>
-      ${e.setor === 'Restaurante' ? `<div class="info-row"><span class="label">Plano</span><span>${e.plano || '—'}</span></div>` : ''}
-      ${e.email ? `<div class="info-row"><span class="label">Email</span><span>${e.email}</span></div>` : ''}
-      ${e.telefone ? `<div class="info-row"><span class="label">Telefone</span><span>${e.telefone}</span></div>` : ''}
-      ${e.notas ? `<div class="info-row"><span class="label">Notas</span><span>${e.notas}</span></div>` : ''}
+      <div id="empresa-detalhes" style="display:none;">
+        <div class="info-row"><span class="label">Localização</span><span>${e.localizacao || '—'}</span></div>
+        <div class="info-row"><span class="label">Setor</span><span>${e.setor || '—'}</span></div>
+        ${e.setor === 'Restaurante' ? `<div class="info-row"><span class="label">Plano</span><span>${e.plano || '—'}</span></div>` : ''}
+        ${e.email ? `<div class="info-row"><span class="label">Email</span><span>${e.email}</span></div>` : ''}
+        ${e.telefone ? `<div class="info-row"><span class="label">Telefone</span><span>${e.telefone}</span></div>` : ''}
+        ${e.notas ? `<div class="info-row"><span class="label">Notas</span><span>${e.notas}</span></div>` : ''}
+      </div>
     </div>
 
     <div class="section">
@@ -116,6 +119,13 @@ function showClientePanel(token) {
       <button class="btn-secondary btn-danger" id="btn-desassociar">Desassociar</button>
     </div>
   `;
+
+  document.getElementById('empresa-header').addEventListener('click', () => {
+    const det = document.getElementById('empresa-detalhes');
+    const aberto = det.style.display !== 'none';
+    det.style.display = aberto ? 'none' : 'block';
+    document.getElementById('btn-expandir-empresa').textContent = aberto ? '▾' : '▴';
+  });
 
   document.getElementById('btn-alterar').addEventListener('click', () => {
     showSearchPessoa(token);
