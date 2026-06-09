@@ -192,7 +192,8 @@ async function renderCardsEmpresa(empresaId) {
         await t.getRestApi().authorize({ scope: 'read', expiration: 'never' });
         renderCardsEmpresa(empresaId);
       } catch (e) {
-        section.innerHTML = `<h3>Cards (${assoc.length})</h3><p class="empty">Não foi possível autorizar o acesso ao Trello.</p>`;
+        const msg = e && e.message ? e.message : String(e);
+        section.innerHTML = `<h3>Cards (${assoc.length})</h3><p class="empty">Não foi possível autorizar o acesso ao Trello.<br>Detalhe: ${esc(msg)}</p>`;
       }
     });
     return;
