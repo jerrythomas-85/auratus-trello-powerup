@@ -85,11 +85,17 @@ function outrasEmpresasDaPessoa(pessoa, excluirId) {
 }
 
 // Etiquetas com o nome (e cor) de cada outra empresa da pessoa.
-function tagsOutrasEmpresas(pessoa, excluirId) {
+// clicavel = true torna-as clicáveis (para trocar a empresa associada ao card).
+function tagsOutrasEmpresas(pessoa, excluirId, clicavel) {
   return outrasEmpresasDaPessoa(pessoa, excluirId)
     .map(id => allEmpresas.find(emp => emp.empresa_id === id))
     .filter(Boolean)
-    .map(e => `<span class="tag-mais"><span class="tag-dot" style="background:${hexDaCor(e.cor)}"></span>${e.nome}</span>`)
+    .map(e => {
+      const attrs = clicavel
+        ? ` class="tag-mais tag-clicavel" data-empresa-id="${e.empresa_id}" title="Trocar para ${e.nome}"`
+        : ` class="tag-mais"`;
+      return `<span${attrs}><span class="tag-dot" style="background:${hexDaCor(e.cor)}"></span>${e.nome}</span>`;
+    })
     .join('');
 }
 
@@ -99,7 +105,7 @@ function showClientePanel(token) {
   const panel = document.getElementById('crm-panel');
   const e = currentEmpresa || {};
   const p = currentPessoa || {};
-  const outrasTags = tagsOutrasEmpresas(currentPessoa, e.empresa_id);
+  const outrasTags = tagsOutrasEmpresas(currentPessoa, e.empresa_id, true);
 
   panel.innerHTML = `
     <div class="section">
@@ -136,6 +142,51 @@ function showClientePanel(token) {
   document.getElementById('btn-desassociar').addEventListener('click', () => {
     showDesassociarConfirm(token);
   });
+
+  panel.querySelectorAll('.tag-clicavel').forEach(tag => {
+    tag.addEventListener('click', () => {
+      showTrocarEmpresaConfirm(token, tag.dataset.empresaId);
+    });
+  });
+}
+
+function showTrocarEmpresaConfirm(token, empresaId) {
+  const nova = allEmpresas.find(e => e.empresa_id === empresaId);
+  if (!nova) return;
+  const atual = currentEmpresa || {};
+  const panel = document.getElementById('crm-panel');
+  panel.innerHTML = `
+    <div class="section">
+      <h3>Trocar de empresa</h3>
+      <p>Associar este card a <strong>${nova.nome}</strong> em vez de <strong>${atual.nome || '—'}</strong>?</p>
+      <p class="hint">O contacto mantém-se; muda só a empresa associada a este card.</p>
+      <div class="form-actions">
+        <button id="btn-cancel-trocar" class="btn-secondary">Cancelar</button>
+        <button id="btn-confirm-trocar" class="btn-primary">Sim, trocar</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('btn-cancel-trocar').addEventListener('click', () => {
+    showClientePanel(token);
+  });
+  document.getElementById('btn-confirm-trocar').addEventListener('click', () => {
+    handleTrocarEmpresa(token, empresaId);
+  });
+}
+
+async function handleTrocarEmpresa(token, empresaId) {
+  const nova = allEmpresas.find(e => e.empresa_id === empresaId);
+  if (!nova) { showClientePanel(token); return; }
+  showLoading();
+  try {
+    currentEmpresa = nova;
+    await SheetsAPI.saveCardAssociacao(token, currentCard.id, nova.empresa_id, currentPessoa.pessoa_id);
+    try { await SheetsAPI.addPessoaEmpresa(token, currentPessoa.pessoa_id, nova.empresa_id); } catch (e) {}
+    await setBadgeLocal();
+    showClientePanel(token);
+  } catch (err) {
+    showError(err.message);
+  }
 }
 
 function showDesassociarConfirm(token) {
