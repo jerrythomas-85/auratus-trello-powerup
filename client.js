@@ -22,23 +22,28 @@ TrelloPowerUp.initialize({
   },
 
   'card-buttons': function(t, options) {
-    return [
-      {
-        icon: ICON,
-        text: 'CRM Auratus',
-        callback: function(t) {
-          return t.popup({
-            title: 'CRM Auratus',
-            url: './sidebar.html',
-            height: 600
-          });
-        }
-      },
-      {
-        icon: ICON,
-        text: 'Pesquisa CRM',
-        callback: abrirPesquisa
+    return [{
+      icon: ICON,
+      text: 'CRM Auratus',
+      callback: function(t) {
+        return t.popup({
+          title: 'CRM Auratus',
+          url: './sidebar.html',
+          height: 600
+        });
       }
-    ];
+    }];
+  },
+
+  'card-back-section': function(t, options) {
+    return {
+      title: 'Pesquisa CRM',
+      icon: ICON,
+      content: {
+        type: 'iframe',
+        url: t.signUrl('./search.html'),
+        height: 600
+      }
+    };
   }
 });
