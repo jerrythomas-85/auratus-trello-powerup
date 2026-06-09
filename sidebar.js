@@ -105,7 +105,7 @@ function showClientePanel(token) {
       </div>
     </div>
 
-    <div class="section">
+    <div class="section ficha-contacto">
       <div class="section-header" id="contacto-header" style="cursor:pointer;margin-bottom:0;">
         <h3 class="contacto-nome">👤 ${p.nome || '—'} ${p.apelido || ''}</h3>
         <button class="btn-link" id="btn-expandir-contacto" title="Ver dados do contacto">▾</button>

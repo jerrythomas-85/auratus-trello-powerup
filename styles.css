@@ -33,6 +33,7 @@ body.embedded {
   body.embedded .contacto-nome,
   body.embedded .resultado-item strong { color: #c7d1db; }
   body.embedded .info-row { border-bottom-color: rgba(255, 255, 255, 0.1); }
+  body.embedded .ficha-contacto { border-color: rgba(255, 255, 255, 0.16); }
   body.embedded .btn-secondary {
     background: rgba(255, 255, 255, 0.08);
     color: #c7d1db;
@@ -354,6 +355,13 @@ h3 {
 .ficha-empresa {
   background: #fffbe6;
   border: 1px solid #f3e6b3;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+/* Caixa do contacto: mesma dimensão da empresa, mas só com linha a delimitar */
+.ficha-contacto {
+  border: 1px solid #dfe1e6;
   border-radius: 8px;
   padding: 16px;
 }
