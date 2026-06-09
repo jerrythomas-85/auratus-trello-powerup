@@ -19,17 +19,15 @@ TrelloPowerUp.initialize({
     }];
   },
 
-  'board-buttons': function(t, options) {
-    return [{
-      icon: { dark: ICON, light: ICON },
-      text: 'Pesquisa CRM',
-      callback: function(t) {
-        return t.modal({
-          title: 'Pesquisa CRM',
-          url: './search.html',
-          fullscreen: true
-        });
+  'card-back-section': function(t, options) {
+    return {
+      title: 'Pesquisa CRM',
+      icon: ICON,
+      content: {
+        type: 'iframe',
+        url: t.signUrl('./section-test.html'),
+        height: 120
       }
-    }];
+    };
   }
 });
