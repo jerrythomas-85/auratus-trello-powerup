@@ -235,8 +235,14 @@ function renderCardsList(section, assoc, detalhes) {
     return;
   }
 
-  section.innerHTML = `<h3>Cards (${assoc.length})</h3>` +
-    assoc.map(a => cardLinkHTML(a, detalhes[a.card_id])).join('');
+  const ordenados = [...assoc].sort((a, b) => {
+    const da = dataCriacaoDoCardId(a.card_id);
+    const db = dataCriacaoDoCardId(b.card_id);
+    return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
+  });
+
+  section.innerHTML = `<h3>Cards (${ordenados.length})</h3>` +
+    ordenados.map(a => cardLinkHTML(a, detalhes[a.card_id])).join('');
 
   section.querySelectorAll('.card-link[data-card-id]').forEach(el => {
     el.addEventListener('click', () => {
