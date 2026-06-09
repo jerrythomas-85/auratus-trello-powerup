@@ -106,12 +106,17 @@ function showClientePanel(token) {
     </div>
 
     <div class="section">
-      <h3 class="contacto-nome">👤 ${p.nome || '—'} ${p.apelido || ''}</h3>
-      <div class="info-row"><span class="label">Cargo</span><span>${p.cargo || '—'}</span></div>
-      ${p.funcao ? `<div class="info-row"><span class="label">Função</span><span>${p.funcao}</span></div>` : ''}
-      ${p.email ? `<div class="info-row"><span class="label">Email</span><span>${p.email}</span></div>` : ''}
-      ${p.telemovel ? `<div class="info-row"><span class="label">Telemóvel</span><span>${p.telemovel}</span></div>` : ''}
-      ${outrasTags ? `<div class="info-row"><span class="label">Outras empresas</span><span class="tags-empresas">${outrasTags}</span></div>` : ''}
+      <div class="section-header" id="contacto-header" style="cursor:pointer;margin-bottom:0;">
+        <h3 class="contacto-nome">👤 ${p.nome || '—'} ${p.apelido || ''}</h3>
+        <button class="btn-link" id="btn-expandir-contacto" title="Ver dados do contacto">▾</button>
+      </div>
+      <div id="contacto-detalhes" style="display:none;">
+        <div class="info-row"><span class="label">Cargo</span><span>${p.cargo || '—'}</span></div>
+        ${p.funcao ? `<div class="info-row"><span class="label">Função</span><span>${p.funcao}</span></div>` : ''}
+        ${p.email ? `<div class="info-row"><span class="label">Email</span><span>${p.email}</span></div>` : ''}
+        ${p.telemovel ? `<div class="info-row"><span class="label">Telemóvel</span><span>${p.telemovel}</span></div>` : ''}
+        ${outrasTags ? `<div class="info-row"><span class="label">Outras empresas</span><span class="tags-empresas">${outrasTags}</span></div>` : ''}
+      </div>
     </div>
 
     <div class="form-actions">
@@ -125,6 +130,13 @@ function showClientePanel(token) {
     const aberto = det.style.display !== 'none';
     det.style.display = aberto ? 'none' : 'block';
     document.getElementById('btn-expandir-empresa').textContent = aberto ? '▾' : '▴';
+  });
+
+  document.getElementById('contacto-header').addEventListener('click', () => {
+    const det = document.getElementById('contacto-detalhes');
+    const aberto = det.style.display !== 'none';
+    det.style.display = aberto ? 'none' : 'block';
+    document.getElementById('btn-expandir-contacto').textContent = aberto ? '▾' : '▴';
   });
 
   document.getElementById('btn-alterar').addEventListener('click', () => {
