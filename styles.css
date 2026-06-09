@@ -348,6 +348,26 @@ h3 {
   min-width: 0;
 }
 
+.card-meio {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+  padding-left: 12px;
+  border-left: 1px solid #dfe1e6;
+  min-width: 130px;
+}
+
+.card-cf {
+  font-size: 11px;
+  color: #5e6c84;
+}
+
+.card-cf-nome {
+  font-weight: 600;
+  color: #172b4d;
+}
+
 .card-dir {
   display: flex;
   flex-direction: column;

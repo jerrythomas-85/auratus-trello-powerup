@@ -217,19 +217,22 @@ async function renderCardsEmpresa(empresaId, pessoaId = null) {
     return;
   }
 
-  let detalhes;
+  let detalhes, customFields;
   if (cardsCache.empresaId === empresaId && cardsCache.detalhes) {
     detalhes = cardsCache.detalhes;
+    customFields = cardsCache.customFields;
   } else {
     detalhes = await fetchCardsDetails(todasAssoc.map(a => a.card_id), restToken);
-    cardsCache = { empresaId, detalhes };
+    const boardIds = [...new Set(Object.values(detalhes).map(d => d.idBoard).filter(Boolean))];
+    customFields = await fetchCustomFieldsDefs(boardIds, restToken);
+    cardsCache = { empresaId, detalhes, customFields };
   }
 
   const assoc = pessoaId ? todasAssoc.filter(a => a.pessoa_id === pessoaId) : todasAssoc;
-  renderCardsList(section, assoc, detalhes);
+  renderCardsList(section, assoc, detalhes, customFields);
 }
 
-function renderCardsList(section, assoc, detalhes) {
+function renderCardsList(section, assoc, detalhes, customFields) {
   if (!assoc.length) {
     section.innerHTML = `<h3>Cards (0)</h3><p class="empty">Sem cards para esta pessoa.</p>`;
     return;
@@ -242,7 +245,7 @@ function renderCardsList(section, assoc, detalhes) {
   });
 
   section.innerHTML = `<h3>Cards (${ordenados.length})</h3>` +
-    ordenados.map(a => cardLinkHTML(a, detalhes[a.card_id])).join('');
+    ordenados.map(a => cardLinkHTML(a, detalhes[a.card_id], customFields)).join('');
 
   section.querySelectorAll('.card-link[data-card-id]').forEach(el => {
     el.addEventListener('click', () => {
@@ -265,7 +268,8 @@ async function fetchCardsDetails(cardIds, restToken) {
   await Promise.all(cardIds.map(async id => {
     try {
       const url = `https://api.trello.com/1/cards/${id}?key=${key}&token=${restToken}` +
-        `&fields=name,closed,url,idBoard&board=true&board_fields=name&list=true&list_fields=name`;
+        `&fields=name,closed,url,idBoard&board=true&board_fields=name&list=true&list_fields=name` +
+        `&customFieldItems=true`;
       const res = await fetch(url);
       if (!res.ok) return;
       result[id] = await res.json();
@@ -274,7 +278,23 @@ async function fetchCardsDetails(cardIds, restToken) {
   return result;
 }
 
-function cardLinkHTML(a, det) {
+async function fetchCustomFieldsDefs(boardIds, restToken) {
+  const porBoard = {};
+  const key = AURATUS_CONFIG.TRELLO_API_KEY;
+  await Promise.all(boardIds.map(async boardId => {
+    try {
+      const url = `https://api.trello.com/1/boards/${boardId}/customFields?key=${key}&token=${restToken}`;
+      const res = await fetch(url);
+      if (!res.ok) return;
+      const defs = await res.json();
+      porBoard[boardId] = {};
+      defs.forEach(d => { porBoard[boardId][d.id] = d; });
+    } catch (e) {}
+  }));
+  return porBoard;
+}
+
+function cardLinkHTML(a, det, customFields) {
   const pessoa = dados.pessoas.find(p => p.pessoa_id === a.pessoa_id);
   const nomePessoa = pessoa ? `${pessoa.nome} ${pessoa.apelido || ''}`.trim() : '';
   const dt = dataCriacaoDoCardId(a.card_id);
@@ -288,6 +308,7 @@ function cardLinkHTML(a, det) {
     ? `<span class="card-estado ${arquivado ? 'arquivado' : 'ativo'}">${arquivado ? 'Arquivado' : 'Ativo'}</span>`
     : '';
 
+  const cfHTML = camposPersonalizadosHTML(det, customFields);
   const attrs = det ? ` class="card-link" data-card-id="${a.card_id}"` : ` class="card-link card-indisponivel"`;
   return `
     <div${attrs}>
@@ -295,6 +316,7 @@ function cardLinkHTML(a, det) {
         <strong>${esc(nome)}</strong>
         ${nomePessoa ? `<span>${esc(nomePessoa)}</span>` : ''}
       </div>
+      ${cfHTML ? `<div class="card-meio">${cfHTML}</div>` : ''}
       <div class="card-dir">
         ${dataStr ? `<span class="card-data">📅 ${esc(dataStr)}</span>` : ''}
         <span class="card-board">${esc(boardNome)}</span>
@@ -303,6 +325,39 @@ function cardLinkHTML(a, det) {
       </div>
     </div>
   `;
+}
+
+function camposPersonalizadosHTML(det, customFields) {
+  if (!det || !det.customFieldItems || !det.customFieldItems.length) return '';
+  const defs = customFields && customFields[det.idBoard];
+  if (!defs) return '';
+
+  const linhas = [];
+  det.customFieldItems.forEach(item => {
+    const def = defs[item.idCustomField];
+    if (!def) return;
+
+    let valor = '';
+    if (def.type === 'list') {
+      const opt = (def.options || []).find(o => o.id === item.idValue);
+      valor = opt && opt.value ? opt.value.text : '';
+    } else if (item.value) {
+      if (def.type === 'date' && item.value.date) {
+        const d = new Date(item.value.date);
+        valor = isNaN(d.getTime()) ? item.value.date : d.toLocaleDateString('pt-PT');
+      } else if (def.type === 'checkbox') {
+        valor = item.value.checked === 'true' ? 'Sim' : 'Não';
+      } else if (item.value.text != null) {
+        valor = item.value.text;
+      } else if (item.value.number != null) {
+        valor = item.value.number;
+      }
+    }
+    if (valor === '' || valor == null) return;
+
+    linhas.push(`<span class="card-cf"><span class="card-cf-nome">${esc(def.name)}:</span> ${esc(valor)}</span>`);
+  });
+  return linhas.join('');
 }
 
 function editarEmpresaForm(empresaId) {
