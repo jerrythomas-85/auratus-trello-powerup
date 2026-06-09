@@ -147,7 +147,8 @@ function mostrarDetalhePessoa(pessoaId) {
     });
   });
 
-  renderCardsPessoa(pessoaId);
+  const sel = detalhe.querySelector('.empresa-filtro.selecionado');
+  renderCardsPessoa(pessoaId, sel && sel.dataset.empresaId ? sel.dataset.empresaId : null);
 }
 
 function fichaPessoaHTML(pessoa) {
@@ -178,16 +179,17 @@ function empresasPessoaHTML(pessoaId) {
     ...(pessoa && pessoa.empresa_id ? [pessoa.empresa_id] : [])
   ])];
   const empresas = empresaIds.map(id => dados.empresas.find(e => e.empresa_id === id)).filter(Boolean);
+  const mostrarTodas = empresas.length > 1;
   return `
     <div class="section">
       <h3>Empresas (${empresas.length})</h3>
       ${empresas.length ? `<div class="pessoas-grid">
-        <div class="resultado-item empresa-filtro selecionado" data-empresa-id="">
+        ${mostrarTodas ? `<div class="resultado-item empresa-filtro selecionado" data-empresa-id="">
           <strong>Todas</strong>
           <span>Todos os cards da pessoa</span>
-        </div>
-        ${empresas.map(e => `
-        <div class="resultado-item empresa-filtro" data-empresa-id="${esc(e.empresa_id)}">
+        </div>` : ''}
+        ${empresas.map((e, i) => `
+        <div class="resultado-item empresa-filtro${!mostrarTodas && i === 0 ? ' selecionado' : ''}" data-empresa-id="${esc(e.empresa_id)}">
           <strong>${esc(e.nome)}</strong>
           <span>${esc(e.localizacao) || ''}${e.setor ? ' · ' + esc(e.setor) : ''}</span>
         </div>
@@ -288,7 +290,8 @@ function mostrarDetalheEmpresa(empresaId) {
     });
   });
 
-  renderCardsEmpresa(empresaId);
+  const sel = detalhe.querySelector('.pessoa-filtro.selecionado');
+  renderCardsEmpresa(empresaId, sel && sel.dataset.pessoaId ? sel.dataset.pessoaId : null);
 }
 
 function campoHTML(label, valor) {
@@ -326,16 +329,17 @@ function pessoasEmpresaHTML(empresaId) {
     ...dados.pessoas.filter(p => p.empresa_id === empresaId).map(p => p.pessoa_id)
   ])];
   const pessoas = pessoaIds.map(id => dados.pessoas.find(p => p.pessoa_id === id)).filter(Boolean);
+  const mostrarTodos = pessoas.length > 1;
   return `
     <div class="section">
       <h3>Pessoas (${pessoas.length})</h3>
       ${pessoas.length ? `<div class="pessoas-grid">
-        <div class="resultado-item pessoa-filtro selecionado" data-pessoa-id="">
+        ${mostrarTodos ? `<div class="resultado-item pessoa-filtro selecionado" data-pessoa-id="">
           <strong>Todos</strong>
           <span>Todos os cards da empresa</span>
-        </div>
-        ${pessoas.map(p => `
-        <div class="resultado-item pessoa-filtro" data-pessoa-id="${esc(p.pessoa_id)}">
+        </div>` : ''}
+        ${pessoas.map((p, i) => `
+        <div class="resultado-item pessoa-filtro${!mostrarTodos && i === 0 ? ' selecionado' : ''}" data-pessoa-id="${esc(p.pessoa_id)}">
           <strong>${esc(p.nome)} ${esc(p.apelido) || ''}</strong>
           <span>${esc(p.cargo) || ''}${p.email ? ' · ' + esc(p.email) : ''}</span>
         </div>
