@@ -58,6 +58,7 @@ function showClientePanel(token) {
   const p = currentPessoa || {};
 
   panel.innerHTML = `
+    <div class="cliente-cols">
     <div class="section">
       <div class="section-header">
         <h2>${e.nome || '—'}</h2>
@@ -78,6 +79,7 @@ function showClientePanel(token) {
       ${p.funcao ? `<div class="info-row"><span class="label">Função</span><span>${p.funcao}</span></div>` : ''}
       ${p.email ? `<div class="info-row"><span class="label">Email</span><span>${p.email}</span></div>` : ''}
       ${p.telemovel ? `<div class="info-row"><span class="label">Telemóvel</span><span>${p.telemovel}</span></div>` : ''}
+    </div>
     </div>
   `;
 

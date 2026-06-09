@@ -75,6 +75,14 @@ h3 {
   color: #5e6c84;
 }
 
+/* Empresa | Contacto lado a lado quando há largura; 1 coluna se estreito. */
+.cliente-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
 /* ---- FORMULÁRIOS ---- */
 
 .form-group {
