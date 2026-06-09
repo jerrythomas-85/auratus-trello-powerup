@@ -87,9 +87,10 @@ function showClientePanel(token) {
   const e = currentEmpresa || {};
   const p = currentPessoa || {};
   const outrasTags = tagsOutrasEmpresas(currentPessoa, e.empresa_id, true);
+  const cor = hexDaCor(e.cor || 'blue');
 
   panel.innerHTML = `
-    <div class="section">
+    <div class="section ficha-empresa" style="background:${cor}1a;border-color:${cor}66;margin-bottom:8px;">
       <div class="section-header">
         <h2>${e.nome || '—'}</h2>
         <span class="header-actions">
