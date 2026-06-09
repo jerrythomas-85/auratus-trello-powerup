@@ -289,6 +289,14 @@ h3 {
   gap: 8px;
 }
 
+/* Ficha da empresa destacada com fundo amarelo-claro esbatido */
+.ficha-empresa {
+  background: #fffbe6;
+  border: 1px solid #f3e6b3;
+  border-radius: 8px;
+  padding: 16px;
+}
+
 /* Ficha da empresa (leitura) com o mesmo layout do formulário */
 .campo {
   display: flex;

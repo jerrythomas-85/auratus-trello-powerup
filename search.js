@@ -132,7 +132,7 @@ function fichaEmpresaHTML(empresa) {
   campos.push(campoHTML('Cor', `<span class="tag-dot" style="background:${hexDaCor(empresa.cor)}"></span>${esc(empresa.cor) || 'blue'}`));
 
   return `
-    <div class="section">
+    <div class="section ficha-empresa">
       <div class="section-header">
         <h2>${esc(empresa.nome)}</h2>
         <button class="btn-link" id="btn-editar-empresa" title="Editar empresa">✏️ Editar</button>
