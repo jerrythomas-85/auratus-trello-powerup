@@ -238,6 +238,22 @@ h3 {
   background: #ebecf0;
 }
 
+.btn-perigo {
+  flex: 1;
+  background: #de350b;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-perigo:hover {
+  background: #bf2600;
+}
+
 .btn-link {
   background: none;
   border: none;

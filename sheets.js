@@ -264,6 +264,87 @@ const SheetsAPI = {
     });
   },
 
+  async deleteEmpresa(token, empresa_id) {
+    const [emp, pes, pe, cards] = await Promise.all([
+      this._fetchValues(token, `${AURATUS_CONFIG.SHEETS.EMPRESAS}!A2:A`),
+      this._fetchValues(token, `${AURATUS_CONFIG.SHEETS.PESSOAS}!A2:B`),
+      this._fetchValues(token, `${AURATUS_CONFIG.SHEETS.PESSOAS_EMPRESAS}!A2:B`),
+      this._fetchValues(token, `${AURATUS_CONFIG.SHEETS.CARDS_CRM}!A2:D`)
+    ]);
+
+    // Empresas de cada pessoa = ligações (PESSOAS_EMPRESAS) + empresa principal (PESSOAS col B).
+    const empresasDaPessoa = {};
+    const addEmpresa = (pid, eid) => {
+      if (!pid) return;
+      (empresasDaPessoa[pid] = empresasDaPessoa[pid] || new Set());
+      if (eid) empresasDaPessoa[pid].add(eid);
+    };
+    pes.forEach(r => addEmpresa(r[0], r[1]));
+    pe.forEach(r => addEmpresa(r[0], r[1]));
+
+    // Pessoas órfãs: ligadas a esta empresa e a mais nenhuma.
+    const orfas = new Set();
+    Object.keys(empresasDaPessoa).forEach(pid => {
+      const set = empresasDaPessoa[pid];
+      if (set.has(empresa_id) && [...set].every(e => e === empresa_id)) orfas.add(pid);
+    });
+
+    const deletions = [];
+    emp.forEach((r, i) => { if (r[0] === empresa_id) deletions.push({ title: AURATUS_CONFIG.SHEETS.EMPRESAS, rowIndex: i }); });
+    cards.forEach((r, i) => { if (r[1] === empresa_id || orfas.has(r[2])) deletions.push({ title: AURATUS_CONFIG.SHEETS.CARDS_CRM, rowIndex: i }); });
+    pe.forEach((r, i) => { if (r[1] === empresa_id || orfas.has(r[0])) deletions.push({ title: AURATUS_CONFIG.SHEETS.PESSOAS_EMPRESAS, rowIndex: i }); });
+    pes.forEach((r, i) => { if (orfas.has(r[0])) deletions.push({ title: AURATUS_CONFIG.SHEETS.PESSOAS, rowIndex: i }); });
+
+    await this._deleteRows(token, deletions);
+  },
+
+  async deletePessoa(token, pessoa_id) {
+    const [pes, pe, cards] = await Promise.all([
+      this._fetchValues(token, `${AURATUS_CONFIG.SHEETS.PESSOAS}!A2:A`),
+      this._fetchValues(token, `${AURATUS_CONFIG.SHEETS.PESSOAS_EMPRESAS}!A2:B`),
+      this._fetchValues(token, `${AURATUS_CONFIG.SHEETS.CARDS_CRM}!A2:D`)
+    ]);
+    const deletions = [];
+    pes.forEach((r, i) => { if (r[0] === pessoa_id) deletions.push({ title: AURATUS_CONFIG.SHEETS.PESSOAS, rowIndex: i }); });
+    pe.forEach((r, i) => { if (r[0] === pessoa_id) deletions.push({ title: AURATUS_CONFIG.SHEETS.PESSOAS_EMPRESAS, rowIndex: i }); });
+    cards.forEach((r, i) => { if (r[2] === pessoa_id) deletions.push({ title: AURATUS_CONFIG.SHEETS.CARDS_CRM, rowIndex: i }); });
+    await this._deleteRows(token, deletions);
+  },
+
+  async _fetchValues(token, range) {
+    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
+    const res = await fetch(url, { headers: this.headers(token) });
+    const data = await res.json();
+    return data.values || [];
+  },
+
+  // Apaga várias linhas num único batchUpdate. rowIndex é 0-based entre as linhas de
+  // dados (linha 2 da folha = índice 0). Por folha, apaga de baixo para cima para os
+  // índices não deslizarem.
+  async _deleteRows(token, deletions) {
+    if (!deletions.length) return;
+    const porFolha = {};
+    deletions.forEach(d => { (porFolha[d.title] = porFolha[d.title] || []).push(d.rowIndex); });
+
+    const requests = [];
+    for (const title of Object.keys(porFolha)) {
+      const gid = await this._getSheetGid(token, title);
+      if (gid == null) continue;
+      porFolha[title].sort((a, b) => b - a).forEach(rowIndex => {
+        const startIndex = rowIndex + 1;
+        requests.push({ deleteDimension: { range: { sheetId: gid, dimension: 'ROWS', startIndex, endIndex: startIndex + 1 } } });
+      });
+    }
+    if (!requests.length) return;
+
+    const batchURL = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}:batchUpdate`;
+    await fetch(batchURL, {
+      method: 'POST',
+      headers: this.headers(token),
+      body: JSON.stringify({ requests })
+    });
+  },
+
   async _getSheetGid(token, title) {
     if (!this._gids) {
       const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}?fields=sheets(properties(sheetId,title))`;

@@ -138,6 +138,8 @@ function mostrarDetalhePessoa(pessoaId) {
 
   const btnEditar = document.getElementById('btn-editar-pessoa');
   if (btnEditar) btnEditar.addEventListener('click', () => editarPessoaForm(pessoaId));
+  const btnApagar = document.getElementById('btn-apagar-pessoa');
+  if (btnApagar) btnApagar.addEventListener('click', () => apagarPessoaConfirm(pessoaId));
 
   detalhe.querySelectorAll('.empresa-filtro').forEach(el => {
     el.addEventListener('click', () => {
@@ -163,7 +165,10 @@ function fichaPessoaHTML(pessoa) {
     <div class="section ficha-empresa">
       <div class="section-header">
         <h2>${esc(nomeCompleto)}</h2>
-        <button class="btn-link" id="btn-editar-pessoa" title="Editar pessoa">✏️ Editar</button>
+        <span class="header-actions">
+          <button class="btn-link" id="btn-editar-pessoa" title="Editar pessoa">✏️ Editar</button>
+          <button class="btn-link btn-danger" id="btn-apagar-pessoa" title="Apagar pessoa">🗑️ Apagar</button>
+        </span>
       </div>
       <div class="form-grid">
         ${campos.join('')}
@@ -251,6 +256,89 @@ async function guardarPessoa(pessoaId) {
   }
 }
 
+function apagarEmpresaConfirm(empresaId) {
+  const empresa = dados.empresas.find(e => e.empresa_id === empresaId);
+  if (!empresa) return;
+
+  const nCards = dados.cardAssoc.filter(a => a.empresa_id === empresaId).length;
+  const pessoaIds = new Set([
+    ...dados.pessoaEmpresas.filter(pe => pe.empresa_id === empresaId).map(pe => pe.pessoa_id),
+    ...dados.pessoas.filter(p => p.empresa_id === empresaId).map(p => p.pessoa_id)
+  ]);
+  let nOrfas = 0;
+  pessoaIds.forEach(pid => {
+    const set = new Set(dados.pessoaEmpresas.filter(pe => pe.pessoa_id === pid).map(pe => pe.empresa_id));
+    const p = dados.pessoas.find(x => x.pessoa_id === pid);
+    if (p && p.empresa_id) set.add(p.empresa_id);
+    if ([...set].every(e => e === empresaId)) nOrfas++;
+  });
+
+  const extras = [];
+  if (nCards) extras.push(`${nCards} associação(ões) de cards`);
+  if (nOrfas) extras.push(`${nOrfas} pessoa(s) que só pertenciam a esta empresa`);
+
+  const detalhe = document.getElementById('empresa-detalhe');
+  detalhe.innerHTML = `
+    <div class="section">
+      <h3>Apagar empresa</h3>
+      <p>Apagar <strong>${esc(empresa.nome)}</strong>? Esta ação é irreversível.</p>
+      ${extras.length ? `<p class="hint">Também serão apagados: ${extras.join(' e ')}.</p>` : ''}
+      <div class="form-actions">
+        <button id="btn-cancelar-apagar" class="btn-secondary">Cancelar</button>
+        <button id="btn-confirmar-apagar" class="btn-perigo">Apagar</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('btn-cancelar-apagar').addEventListener('click', () => mostrarDetalheEmpresa(empresaId));
+  document.getElementById('btn-confirmar-apagar').addEventListener('click', () => handleApagarEmpresa(empresaId));
+}
+
+async function handleApagarEmpresa(empresaId) {
+  const detalhe = document.getElementById('empresa-detalhe');
+  detalhe.innerHTML = `<p class="empty">A apagar...</p>`;
+  try {
+    await SheetsAPI.deleteEmpresa(token, empresaId);
+    await carregarDados();
+    renderEmpresasTab();
+  } catch (err) {
+    detalhe.innerHTML = `<p class="empty">Erro ao apagar: ${esc(err.message)}</p>`;
+  }
+}
+
+function apagarPessoaConfirm(pessoaId) {
+  const pessoa = dados.pessoas.find(p => p.pessoa_id === pessoaId);
+  if (!pessoa) return;
+  const nome = `${pessoa.nome} ${pessoa.apelido || ''}`.trim();
+  const nCards = dados.cardAssoc.filter(a => a.pessoa_id === pessoaId).length;
+
+  const detalhe = document.getElementById('pessoa-detalhe');
+  detalhe.innerHTML = `
+    <div class="section">
+      <h3>Apagar pessoa</h3>
+      <p>Apagar <strong>${esc(nome)}</strong>? Esta ação é irreversível.</p>
+      ${nCards ? `<p class="hint">Também serão apagadas ${nCards} associação(ões) de cards.</p>` : ''}
+      <div class="form-actions">
+        <button id="btn-cancelar-apagar-p" class="btn-secondary">Cancelar</button>
+        <button id="btn-confirmar-apagar-p" class="btn-perigo">Apagar</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('btn-cancelar-apagar-p').addEventListener('click', () => mostrarDetalhePessoa(pessoaId));
+  document.getElementById('btn-confirmar-apagar-p').addEventListener('click', () => handleApagarPessoa(pessoaId));
+}
+
+async function handleApagarPessoa(pessoaId) {
+  const detalhe = document.getElementById('pessoa-detalhe');
+  detalhe.innerHTML = `<p class="empty">A apagar...</p>`;
+  try {
+    await SheetsAPI.deletePessoa(token, pessoaId);
+    await carregarDados();
+    renderPessoasTab();
+  } catch (err) {
+    detalhe.innerHTML = `<p class="empty">Erro ao apagar: ${esc(err.message)}</p>`;
+  }
+}
+
 // Data de criação de um card: os primeiros 8 hex do ID do Trello são o timestamp Unix.
 function dataCriacaoDoCardId(cardId) {
   if (!cardId || cardId.length < 8) return null;
@@ -281,6 +369,8 @@ function mostrarDetalheEmpresa(empresaId) {
 
   const btnEditar = document.getElementById('btn-editar-empresa');
   if (btnEditar) btnEditar.addEventListener('click', () => editarEmpresaForm(empresaId));
+  const btnApagar = document.getElementById('btn-apagar-empresa');
+  if (btnApagar) btnApagar.addEventListener('click', () => apagarEmpresaConfirm(empresaId));
 
   detalhe.querySelectorAll('.pessoa-filtro').forEach(el => {
     el.addEventListener('click', () => {
@@ -314,7 +404,10 @@ function fichaEmpresaHTML(empresa) {
     <div class="section ficha-empresa" style="background:${cor}1a;border-color:${cor}66;">
       <div class="section-header">
         <h2>${esc(empresa.nome)}</h2>
-        <button class="btn-link" id="btn-editar-empresa" title="Editar empresa">✏️ Editar</button>
+        <span class="header-actions">
+          <button class="btn-link" id="btn-editar-empresa" title="Editar empresa">✏️ Editar</button>
+          <button class="btn-link btn-danger" id="btn-apagar-empresa" title="Apagar empresa">🗑️ Apagar</button>
+        </span>
       </div>
       <div class="form-grid">
         ${campos.join('')}
