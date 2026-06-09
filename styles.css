@@ -34,7 +34,7 @@ body.embedded {
   body.embedded .resultado-item strong { color: #c7d1db; }
   body.embedded .info-row { border-bottom-color: rgba(255, 255, 255, 0.1); }
   body.embedded .ficha-contacto { border-color: rgba(255, 255, 255, 0.16); }
-  body.embedded .btn-icon { color: #9fadbc; }
+  body.embedded .btn-icon { color: #9fadbc; border-color: rgba(255, 255, 255, 0.16); }
   body.embedded .btn-icon:hover { color: #c7d1db; }
   body.embedded .btn-icon.btn-danger:hover { color: #ff7452; }
   body.embedded .btn-secondary {
@@ -269,11 +269,11 @@ h3 {
 
 .btn-icon {
   background: none;
-  border: none;
+  border: 1px solid #dfe1e6;
   color: #5e6c84;
   font-size: 15px;
   line-height: 1;
-  padding: 4px 6px;
+  padding: 4px 8px;
   border-radius: 4px;
   cursor: pointer;
 }

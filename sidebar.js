@@ -90,6 +90,10 @@ function showClientePanel(token) {
   const cor = hexDaCor(e.cor || 'blue');
 
   panel.innerHTML = `
+    <div class="card-acoes">
+      <button class="btn-icon" id="btn-alterar" title="Alterar associação">⇄</button>
+      <button class="btn-icon btn-danger" id="btn-desassociar" title="Desassociar">✕</button>
+    </div>
     <div class="section ficha-empresa" style="background:${cor}1a;border-color:${cor}66;margin-bottom:8px;">
       <div class="section-header" id="empresa-header" style="cursor:pointer;margin-bottom:0;">
         <h2>🏢 ${e.nome || '—'}</h2>
@@ -119,10 +123,6 @@ function showClientePanel(token) {
       </div>
     </div>
 
-    <div class="card-acoes">
-      <button class="btn-icon" id="btn-alterar" title="Alterar associação">⇄</button>
-      <button class="btn-icon btn-danger" id="btn-desassociar" title="Desassociar">✕</button>
-    </div>
   `;
 
   document.getElementById('empresa-header').addEventListener('click', () => {
