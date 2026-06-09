@@ -6,7 +6,7 @@ const ICON = 'https://cdn-icons-png.flaticon.com/512/561/561127.png';
 
 function abrirPesquisa(t) {
   return t.modal({
-    title: 'Pesquisa CRM',
+    title: 'Ver CRM',
     url: './search.html',
     fullscreen: true
   });
@@ -39,7 +39,7 @@ TrelloPowerUp.initialize({
   'board-buttons': function(t, options) {
     return [{
       icon: { dark: ICON, light: ICON },
-      text: 'Pesquisa CRM',
+      text: 'Ver CRM',
       callback: abrirPesquisa
     }];
   },
@@ -54,7 +54,7 @@ TrelloPowerUp.initialize({
         height: 80
       },
       action: {
-        text: '🔍 Pesquisar',
+        text: '👁️ Ver CRM',
         callback: abrirPesquisa
       }
     };
