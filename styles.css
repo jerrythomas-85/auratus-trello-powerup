@@ -34,6 +34,9 @@ body.embedded {
   body.embedded .resultado-item strong { color: #c7d1db; }
   body.embedded .info-row { border-bottom-color: rgba(255, 255, 255, 0.1); }
   body.embedded .ficha-contacto { border-color: rgba(255, 255, 255, 0.16); }
+  body.embedded .btn-icon { color: #9fadbc; }
+  body.embedded .btn-icon:hover { color: #c7d1db; }
+  body.embedded .btn-icon.btn-danger:hover { color: #ff7452; }
   body.embedded .btn-secondary {
     background: rgba(255, 255, 255, 0.08);
     color: #c7d1db;
@@ -255,6 +258,32 @@ h3 {
 
 .btn-danger {
   color: #de350b;
+}
+
+.card-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  color: #5e6c84;
+  font-size: 15px;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-icon:hover {
+  color: #172b4d;
+}
+
+.btn-icon.btn-danger:hover {
+  color: #bf2600;
 }
 
 /* Seletor de cor do badge da empresa */

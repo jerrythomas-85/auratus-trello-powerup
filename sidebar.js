@@ -119,9 +119,9 @@ function showClientePanel(token) {
       </div>
     </div>
 
-    <div class="form-actions">
-      <button class="btn-secondary" id="btn-alterar">Alterar</button>
-      <button class="btn-secondary btn-danger" id="btn-desassociar">Desassociar</button>
+    <div class="card-acoes">
+      <button class="btn-icon" id="btn-alterar" title="Alterar associação">⇄</button>
+      <button class="btn-icon btn-danger" id="btn-desassociar" title="Desassociar">✕</button>
     </div>
   `;
 
