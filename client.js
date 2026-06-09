@@ -13,22 +13,11 @@ function abrirPesquisa(t) {
 }
 
 // Lê o badge guardado localmente no card (t.set feito ao associar).
-// Rápido: sem OAuth e sem ir à Google Sheet.
-
-// Frente do cartão (tile): só o nome da empresa.
+// Rápido: sem OAuth e sem ir à Google Sheet. Mostra só o nome da empresa.
 function crmBadgeEmpresa(t) {
   return t.get('card', 'shared', 'crmBadge').then(function(badge) {
     if (!badge || !badge.empresa) return [];
     return [{ text: badge.empresa, color: 'blue' }];
-  });
-}
-
-// Vista de detalhe do cartão: pessoa · empresa.
-function crmBadgeCompleto(t) {
-  return t.get('card', 'shared', 'crmBadge').then(function(badge) {
-    if (!badge || !badge.pessoa) return [];
-    const texto = badge.empresa ? badge.pessoa + ' · ' + badge.empresa : badge.pessoa;
-    return [{ text: texto, color: 'blue' }];
   });
 }
 
@@ -76,6 +65,6 @@ TrelloPowerUp.initialize({
   },
 
   'card-detail-badges': function(t, options) {
-    return crmBadgeCompleto(t);
+    return crmBadgeEmpresa(t);
   }
 });
