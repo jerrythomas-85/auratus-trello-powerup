@@ -92,7 +92,7 @@ function showClientePanel(token) {
   panel.innerHTML = `
     <div class="section ficha-empresa" style="background:${cor}1a;border-color:${cor}66;margin-bottom:8px;">
       <div class="section-header">
-        <h2>${e.nome || '—'}</h2>
+        <h2>🏢 ${e.nome || '—'}</h2>
       </div>
       <div class="info-row"><span class="label">Localização</span><span>${e.localizacao || '—'}</span></div>
       <div class="info-row"><span class="label">Setor</span><span>${e.setor || '—'}</span></div>
