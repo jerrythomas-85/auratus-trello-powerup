@@ -116,6 +116,14 @@ function mostrarDetalheEmpresa(empresaId) {
   const btnEditar = document.getElementById('btn-editar-empresa');
   if (btnEditar) btnEditar.addEventListener('click', () => editarEmpresaForm(empresaId));
 
+  detalhe.querySelectorAll('.pessoa-filtro').forEach(el => {
+    el.addEventListener('click', () => {
+      detalhe.querySelectorAll('.pessoa-filtro').forEach(x => x.classList.remove('selecionado'));
+      el.classList.add('selecionado');
+      renderCardsEmpresa(empresaId, el.dataset.pessoaId || null);
+    });
+  });
+
   renderCardsEmpresa(empresaId);
 }
 
@@ -157,8 +165,13 @@ function pessoasEmpresaHTML(empresaId) {
   return `
     <div class="section">
       <h3>Pessoas (${pessoas.length})</h3>
-      ${pessoas.length ? `<div class="pessoas-grid">${pessoas.map(p => `
-        <div class="resultado-item">
+      ${pessoas.length ? `<div class="pessoas-grid">
+        <div class="resultado-item pessoa-filtro selecionado" data-pessoa-id="">
+          <strong>Todos</strong>
+          <span>Todos os cards da empresa</span>
+        </div>
+        ${pessoas.map(p => `
+        <div class="resultado-item pessoa-filtro" data-pessoa-id="${esc(p.pessoa_id)}">
           <strong>${esc(p.nome)} ${esc(p.apelido) || ''}</strong>
           <span>${esc(p.cargo) || ''}${p.email ? ' · ' + esc(p.email) : ''}</span>
         </div>
@@ -167,11 +180,13 @@ function pessoasEmpresaHTML(empresaId) {
   `;
 }
 
-async function renderCardsEmpresa(empresaId) {
+let cardsCache = { empresaId: null, detalhes: null };
+
+async function renderCardsEmpresa(empresaId, pessoaId = null) {
   const section = document.getElementById('cards-section');
   if (!section) return;
-  const assoc = dados.cardAssoc.filter(a => a.empresa_id === empresaId);
-  if (!assoc.length) {
+  const todasAssoc = dados.cardAssoc.filter(a => a.empresa_id === empresaId);
+  if (!todasAssoc.length) {
     section.innerHTML = `<h3>Cards (0)</h3><p class="empty">Sem cards associados.</p>`;
     return;
   }
@@ -186,23 +201,39 @@ async function renderCardsEmpresa(empresaId) {
 
   if (!restToken) {
     section.innerHTML = `
-      <h3>Cards (${assoc.length})</h3>
+      <h3>Cards (${todasAssoc.length})</h3>
       <p class="empty">Autoriza o acesso ao Trello para veres o board, a lista e o estado de cada card.</p>
       <button id="btn-autorizar-trello" class="btn-secondary">Autorizar Trello</button>
     `;
     document.getElementById('btn-autorizar-trello').addEventListener('click', async () => {
       try {
         await t.getRestApi().authorize({ scope: 'read', expiration: 'never' });
-        renderCardsEmpresa(empresaId);
+        renderCardsEmpresa(empresaId, pessoaId);
       } catch (e) {
         const msg = e && e.message ? e.message : String(e);
-        section.innerHTML = `<h3>Cards (${assoc.length})</h3><p class="empty">Não foi possível autorizar o acesso ao Trello.<br>Detalhe: ${esc(msg)}</p>`;
+        section.innerHTML = `<h3>Cards (${todasAssoc.length})</h3><p class="empty">Não foi possível autorizar o acesso ao Trello.<br>Detalhe: ${esc(msg)}</p>`;
       }
     });
     return;
   }
 
-  const detalhes = await fetchCardsDetails(assoc.map(a => a.card_id), restToken);
+  let detalhes;
+  if (cardsCache.empresaId === empresaId && cardsCache.detalhes) {
+    detalhes = cardsCache.detalhes;
+  } else {
+    detalhes = await fetchCardsDetails(todasAssoc.map(a => a.card_id), restToken);
+    cardsCache = { empresaId, detalhes };
+  }
+
+  const assoc = pessoaId ? todasAssoc.filter(a => a.pessoa_id === pessoaId) : todasAssoc;
+  renderCardsList(section, assoc, detalhes);
+}
+
+function renderCardsList(section, assoc, detalhes) {
+  if (!assoc.length) {
+    section.innerHTML = `<h3>Cards (0)</h3><p class="empty">Sem cards para esta pessoa.</p>`;
+    return;
+  }
 
   section.innerHTML = `<h3>Cards (${assoc.length})</h3>` +
     assoc.map(a => cardLinkHTML(a, detalhes[a.card_id])).join('');
