@@ -278,8 +278,7 @@ function cardLinkHTML(a, det) {
   const pessoa = dados.pessoas.find(p => p.pessoa_id === a.pessoa_id);
   const nomePessoa = pessoa ? `${pessoa.nome} ${pessoa.apelido || ''}`.trim() : '';
   const dt = dataCriacaoDoCardId(a.card_id);
-  const dataStr = dt ? 'Criado ' + dt.toLocaleDateString('pt-PT') : '';
-  const metaEsq = [dataStr, nomePessoa].filter(Boolean).join(' · ');
+  const dataStr = dt ? dt.toLocaleDateString('pt-PT') : '';
 
   const nome = det ? det.name : '(card não encontrado)';
   const boardNome = det && det.board ? det.board.name : '—';
@@ -294,9 +293,10 @@ function cardLinkHTML(a, det) {
     <div${attrs}>
       <div class="card-esq">
         <strong>${esc(nome)}</strong>
-        ${metaEsq ? `<span>${esc(metaEsq)}</span>` : ''}
+        ${nomePessoa ? `<span>${esc(nomePessoa)}</span>` : ''}
       </div>
       <div class="card-dir">
+        ${dataStr ? `<span class="card-data">📅 ${esc(dataStr)}</span>` : ''}
         <span class="card-board">${esc(boardNome)}</span>
         <span class="card-lista">${esc(listaNome)}</span>
         ${estadoHTML}

@@ -379,6 +379,11 @@ h3 {
   color: #5e6c84;
 }
 
+.card-data {
+  font-size: 11px;
+  color: #5e6c84;
+}
+
 .card-estado {
   font-size: 10px;
   font-weight: 600;
