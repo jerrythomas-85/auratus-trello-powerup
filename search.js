@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('tab-empresas').innerHTML = `<p class="empty">A carregar...</p>`;
   await carregarDados();
   renderEmpresasTab();
+  renderPessoasTab();
 });
 
 function setupTabs() {
@@ -83,6 +84,112 @@ function renderEmpresasTab() {
       });
     });
   });
+}
+
+// ---- SEPARADOR PESSOAS ----
+
+function renderPessoasTab() {
+  const panel = document.getElementById('tab-pessoas');
+  panel.innerHTML = `
+    <div class="search-box">
+      <input type="text" id="search-pessoa-board" placeholder="Pesquisar pessoa..." autocomplete="off" />
+    </div>
+    <div id="pessoa-resultados" class="resultados"></div>
+    <div id="pessoa-detalhe"></div>
+  `;
+
+  const input = document.getElementById('search-pessoa-board');
+  const resultados = document.getElementById('pessoa-resultados');
+
+  input.addEventListener('input', function() {
+    const q = this.value.toLowerCase().trim();
+    document.getElementById('pessoa-detalhe').innerHTML = '';
+    if (!q) { resultados.innerHTML = ''; return; }
+    const filtradas = dados.pessoas.filter(p => `${p.nome} ${p.apelido || ''}`.toLowerCase().includes(q));
+    resultados.innerHTML = filtradas.length
+      ? filtradas.map(p => `
+          <div class="resultado-item" data-pessoa-id="${p.pessoa_id}">
+            <strong>${esc(p.nome)} ${esc(p.apelido) || ''}</strong>
+            <span>${esc(p.cargo) || ''}${p.email ? ' · ' + esc(p.email) : ''}</span>
+          </div>
+        `).join('')
+      : `<p class="empty">Nenhuma pessoa encontrada.</p>`;
+
+    resultados.querySelectorAll('.resultado-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const pessoa = dados.pessoas.find(p => p.pessoa_id === item.dataset.pessoaId);
+        resultados.innerHTML = '';
+        input.value = pessoa ? `${pessoa.nome} ${pessoa.apelido || ''}`.trim() : '';
+        mostrarDetalhePessoa(item.dataset.pessoaId);
+      });
+    });
+  });
+}
+
+function mostrarDetalhePessoa(pessoaId) {
+  const pessoa = dados.pessoas.find(p => p.pessoa_id === pessoaId);
+  if (!pessoa) return;
+
+  const detalhe = document.getElementById('pessoa-detalhe');
+  detalhe.innerHTML =
+    fichaPessoaHTML(pessoa) +
+    empresasPessoaHTML(pessoaId) +
+    `<div class="section" id="cards-section-pessoa"><h3>Cards</h3><p class="empty">A carregar cards...</p></div>`;
+
+  detalhe.querySelectorAll('.empresa-filtro').forEach(el => {
+    el.addEventListener('click', () => {
+      detalhe.querySelectorAll('.empresa-filtro').forEach(x => x.classList.remove('selecionado'));
+      el.classList.add('selecionado');
+      renderCardsPessoa(pessoaId, el.dataset.empresaId || null);
+    });
+  });
+
+  renderCardsPessoa(pessoaId);
+}
+
+function fichaPessoaHTML(pessoa) {
+  const nomeCompleto = `${pessoa.nome} ${pessoa.apelido || ''}`.trim();
+  const campos = [];
+  if (pessoa.cargo) campos.push(campoHTML('Cargo', esc(pessoa.cargo)));
+  if (pessoa.funcao) campos.push(campoHTML('Função', esc(pessoa.funcao)));
+  if (pessoa.email) campos.push(campoHTML('Email', esc(pessoa.email)));
+  if (pessoa.telemovel) campos.push(campoHTML('Telemóvel', esc(pessoa.telemovel)));
+
+  return `
+    <div class="section ficha-empresa">
+      <div class="section-header">
+        <h2>${esc(nomeCompleto)}</h2>
+      </div>
+      <div class="form-grid">
+        ${campos.join('')}
+      </div>
+    </div>
+  `;
+}
+
+function empresasPessoaHTML(pessoaId) {
+  const pessoa = dados.pessoas.find(p => p.pessoa_id === pessoaId);
+  const empresaIds = [...new Set([
+    ...dados.pessoaEmpresas.filter(pe => pe.pessoa_id === pessoaId).map(pe => pe.empresa_id),
+    ...(pessoa && pessoa.empresa_id ? [pessoa.empresa_id] : [])
+  ])];
+  const empresas = empresaIds.map(id => dados.empresas.find(e => e.empresa_id === id)).filter(Boolean);
+  return `
+    <div class="section">
+      <h3>Empresas (${empresas.length})</h3>
+      ${empresas.length ? `<div class="pessoas-grid">
+        <div class="resultado-item empresa-filtro selecionado" data-empresa-id="">
+          <strong>Todas</strong>
+          <span>Todos os cards da pessoa</span>
+        </div>
+        ${empresas.map(e => `
+        <div class="resultado-item empresa-filtro" data-empresa-id="${esc(e.empresa_id)}">
+          <strong>${esc(e.nome)}</strong>
+          <span>${esc(e.localizacao) || ''}${e.setor ? ' · ' + esc(e.setor) : ''}</span>
+        </div>
+      `).join('')}</div>` : `<p class="empty">Sem empresas associadas.</p>`}
+    </div>
+  `;
 }
 
 // Data de criação de um card: os primeiros 8 hex do ID do Trello são o timestamp Unix.
@@ -180,12 +287,28 @@ function pessoasEmpresaHTML(empresaId) {
   `;
 }
 
-let cardsCache = { empresaId: null, detalhes: null };
+let cardsCacheEmpresa = { chave: null, detalhes: null, customFields: null };
+let cardsCachePessoa = { chave: null, detalhes: null, customFields: null };
 
 async function renderCardsEmpresa(empresaId, pessoaId = null) {
   const section = document.getElementById('cards-section');
   if (!section) return;
   const todasAssoc = dados.cardAssoc.filter(a => a.empresa_id === empresaId);
+  const filtrados = pessoaId ? todasAssoc.filter(a => a.pessoa_id === pessoaId) : todasAssoc;
+  await renderCardsCore(section, todasAssoc, filtrados, cardsCacheEmpresa, empresaId, 'empresa',
+    () => renderCardsEmpresa(empresaId, pessoaId));
+}
+
+async function renderCardsPessoa(pessoaId, empresaId = null) {
+  const section = document.getElementById('cards-section-pessoa');
+  if (!section) return;
+  const todasAssoc = dados.cardAssoc.filter(a => a.pessoa_id === pessoaId);
+  const filtrados = empresaId ? todasAssoc.filter(a => a.empresa_id === empresaId) : todasAssoc;
+  await renderCardsCore(section, todasAssoc, filtrados, cardsCachePessoa, pessoaId, 'pessoa',
+    () => renderCardsPessoa(pessoaId, empresaId));
+}
+
+async function renderCardsCore(section, todasAssoc, filtrados, cache, chave, contexto, reRender) {
   if (!todasAssoc.length) {
     section.innerHTML = `<h3>Cards (0)</h3><p class="empty">Sem cards associados.</p>`;
     return;
@@ -205,10 +328,10 @@ async function renderCardsEmpresa(empresaId, pessoaId = null) {
       <p class="empty">Autoriza o acesso ao Trello para veres o board, a lista e o estado de cada card.</p>
       <button id="btn-autorizar-trello" class="btn-secondary">Autorizar Trello</button>
     `;
-    document.getElementById('btn-autorizar-trello').addEventListener('click', async () => {
+    section.querySelector('#btn-autorizar-trello').addEventListener('click', async () => {
       try {
         await t.getRestApi().authorize({ scope: 'read', expiration: 'never' });
-        renderCardsEmpresa(empresaId, pessoaId);
+        reRender();
       } catch (e) {
         const msg = e && e.message ? e.message : String(e);
         section.innerHTML = `<h3>Cards (${todasAssoc.length})</h3><p class="empty">Não foi possível autorizar o acesso ao Trello.<br>Detalhe: ${esc(msg)}</p>`;
@@ -218,23 +341,24 @@ async function renderCardsEmpresa(empresaId, pessoaId = null) {
   }
 
   let detalhes, customFields;
-  if (cardsCache.empresaId === empresaId && cardsCache.detalhes) {
-    detalhes = cardsCache.detalhes;
-    customFields = cardsCache.customFields;
+  if (cache.chave === chave && cache.detalhes) {
+    detalhes = cache.detalhes;
+    customFields = cache.customFields;
   } else {
     detalhes = await fetchCardsDetails(todasAssoc.map(a => a.card_id), restToken);
     const boardIds = [...new Set(Object.values(detalhes).map(d => d.idBoard).filter(Boolean))];
     customFields = await fetchCustomFieldsDefs(boardIds, restToken);
-    cardsCache = { empresaId, detalhes, customFields };
+    cache.chave = chave;
+    cache.detalhes = detalhes;
+    cache.customFields = customFields;
   }
 
-  const assoc = pessoaId ? todasAssoc.filter(a => a.pessoa_id === pessoaId) : todasAssoc;
-  renderCardsList(section, assoc, detalhes, customFields);
+  renderCardsList(section, filtrados, detalhes, customFields, contexto);
 }
 
-function renderCardsList(section, assoc, detalhes, customFields) {
+function renderCardsList(section, assoc, detalhes, customFields, contexto) {
   if (!assoc.length) {
-    section.innerHTML = `<h3>Cards (0)</h3><p class="empty">Sem cards para esta pessoa.</p>`;
+    section.innerHTML = `<h3>Cards (0)</h3><p class="empty">Sem cards.</p>`;
     return;
   }
 
@@ -245,7 +369,7 @@ function renderCardsList(section, assoc, detalhes, customFields) {
   });
 
   section.innerHTML = `<h3>Cards (${ordenados.length})</h3>` +
-    ordenados.map(a => cardLinkHTML(a, detalhes[a.card_id], customFields)).join('');
+    ordenados.map(a => cardLinkHTML(a, detalhes[a.card_id], customFields, contexto)).join('');
 
   section.querySelectorAll('.card-link[data-card-id]').forEach(el => {
     el.addEventListener('click', () => {
@@ -294,9 +418,15 @@ async function fetchCustomFieldsDefs(boardIds, restToken) {
   return porBoard;
 }
 
-function cardLinkHTML(a, det, customFields) {
-  const pessoa = dados.pessoas.find(p => p.pessoa_id === a.pessoa_id);
-  const nomePessoa = pessoa ? `${pessoa.nome} ${pessoa.apelido || ''}`.trim() : '';
+function cardLinkHTML(a, det, customFields, contexto) {
+  let subLinha = '';
+  if (contexto === 'pessoa') {
+    const empresa = dados.empresas.find(e => e.empresa_id === a.empresa_id);
+    subLinha = empresa ? empresa.nome : '';
+  } else {
+    const pessoa = dados.pessoas.find(p => p.pessoa_id === a.pessoa_id);
+    subLinha = pessoa ? `${pessoa.nome} ${pessoa.apelido || ''}`.trim() : '';
+  }
   const dt = dataCriacaoDoCardId(a.card_id);
   const dataStr = dt ? dt.toLocaleDateString('pt-PT') : '';
 
@@ -315,7 +445,7 @@ function cardLinkHTML(a, det, customFields) {
       <div class="card-esq">
         <strong>${esc(nome)}</strong>
         ${dataStr ? `<span class="card-data">📅 ${esc(dataStr)}</span>` : ''}
-        ${nomePessoa ? `<span>${esc(nomePessoa)}</span>` : ''}
+        ${subLinha ? `<span>${esc(subLinha)}</span>` : ''}
       </div>
       ${cfHTML ? `<div class="card-meio">${cfHTML}</div>` : ''}
       <div class="card-dir">
