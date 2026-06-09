@@ -120,21 +120,31 @@ function mostrarDetalheEmpresa(empresaId) {
   });
 }
 
+function campoHTML(label, valor) {
+  return `<div class="campo"><label>${label}</label><div class="campo-valor">${valor}</div></div>`;
+}
+
 function fichaEmpresaHTML(empresa) {
+  const campos = [
+    campoHTML('Localização', esc(empresa.localizacao) || '—'),
+    campoHTML('Setor', esc(empresa.setor) || '—')
+  ];
+  if (empresa.setor === 'Restaurante') campos.push(campoHTML('Plano', esc(empresa.plano) || '—'));
+  if (empresa.data_inicio) campos.push(campoHTML('Data de Início', esc(empresa.data_inicio)));
+  if (empresa.email) campos.push(campoHTML('Email', esc(empresa.email)));
+  if (empresa.telefone) campos.push(campoHTML('Telefone', esc(empresa.telefone)));
+  campos.push(campoHTML('Cor', `<span class="tag-dot" style="background:${hexDaCor(empresa.cor)}"></span>${esc(empresa.cor) || 'blue'}`));
+
   return `
     <div class="section">
       <div class="section-header">
         <h2>${esc(empresa.nome)}</h2>
         <button class="btn-link" id="btn-editar-empresa" title="Editar empresa">✏️ Editar</button>
       </div>
-      <div class="info-row"><span class="label">Localização</span><span>${esc(empresa.localizacao) || '—'}</span></div>
-      <div class="info-row"><span class="label">Setor</span><span>${esc(empresa.setor) || '—'}</span></div>
-      ${empresa.setor === 'Restaurante' ? `<div class="info-row"><span class="label">Plano</span><span>${esc(empresa.plano) || '—'}</span></div>` : ''}
-      ${empresa.data_inicio ? `<div class="info-row"><span class="label">Data de Início</span><span>${esc(empresa.data_inicio)}</span></div>` : ''}
-      ${empresa.email ? `<div class="info-row"><span class="label">Email</span><span>${esc(empresa.email)}</span></div>` : ''}
-      ${empresa.telefone ? `<div class="info-row"><span class="label">Telefone</span><span>${esc(empresa.telefone)}</span></div>` : ''}
-      ${empresa.notas ? `<div class="info-row"><span class="label">Notas</span><span>${esc(empresa.notas)}</span></div>` : ''}
-      <div class="info-row"><span class="label">Cor</span><span><span class="tag-dot" style="background:${hexDaCor(empresa.cor)}"></span>${esc(empresa.cor) || 'blue'}</span></div>
+      <div class="form-grid">
+        ${campos.join('')}
+      </div>
+      ${empresa.notas ? `<div class="campo"><label>Notas</label><div class="campo-valor">${esc(empresa.notas)}</div></div>` : ''}
     </div>
   `;
 }

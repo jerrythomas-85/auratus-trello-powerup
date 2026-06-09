@@ -289,6 +289,25 @@ h3 {
   gap: 8px;
 }
 
+/* Ficha da empresa (leitura) com o mesmo layout do formulário */
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+.campo label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #5e6c84;
+}
+
+.campo-valor {
+  font-size: 13px;
+  color: #172b4d;
+}
+
 .detalhe-cols {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
