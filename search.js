@@ -4,7 +4,7 @@
 
 let t;
 let token = null;
-let dados = { empresas: [], pessoas: [], pessoaEmpresas: [], cardAssoc: [], boardCards: [] };
+let dados = { empresas: [], pessoas: [], pessoaEmpresas: [], cardAssoc: [], boardId: null };
 
 document.addEventListener('DOMContentLoaded', async () => {
   t = TrelloPowerUp.iframe();
@@ -29,14 +29,14 @@ function setupTabs() {
 async function carregarDados() {
   try {
     token = await Auth.ensureToken();
-    const [empresas, pessoas, pessoaEmpresas, cardAssoc, boardCards] = await Promise.all([
+    const [empresas, pessoas, pessoaEmpresas, cardAssoc, board] = await Promise.all([
       SheetsAPI.getEmpresas(token),
       SheetsAPI.getPessoas(token),
       SheetsAPI.getAllPessoaEmpresas(token).catch(() => []),
       SheetsAPI.getAllCardAssociacoes(token),
-      t.cards('id', 'name').catch(() => [])
+      t.board('id').catch(() => ({}))
     ]);
-    dados = { empresas, pessoas, pessoaEmpresas, cardAssoc, boardCards };
+    dados = { empresas, pessoas, pessoaEmpresas, cardAssoc, boardId: board.id };
   } catch (err) {
     document.getElementById('tab-empresas').innerHTML = `<p class="empty">Erro: ${err.message}</p>`;
   }
@@ -108,16 +108,12 @@ function mostrarDetalheEmpresa(empresaId) {
   detalhe.innerHTML =
     fichaEmpresaHTML(empresa) +
     pessoasEmpresaHTML(empresaId) +
-    cardsEmpresaHTML(empresaId);
+    `<div class="section" id="cards-section"><h3>Cards</h3><p class="empty">A carregar cards...</p></div>`;
 
   const btnEditar = document.getElementById('btn-editar-empresa');
   if (btnEditar) btnEditar.addEventListener('click', () => editarEmpresaForm(empresaId));
 
-  detalhe.querySelectorAll('.card-link[data-card-id]').forEach(el => {
-    el.addEventListener('click', () => {
-      t.showCard(el.dataset.cardId).catch(() => {});
-    });
-  });
+  renderCardsEmpresa(empresaId);
 }
 
 function campoHTML(label, valor) {
@@ -168,25 +164,102 @@ function pessoasEmpresaHTML(empresaId) {
   `;
 }
 
-function cardsEmpresaHTML(empresaId) {
-  const cardMap = {};
-  dados.boardCards.forEach(c => { cardMap[c.id] = c; });
+async function renderCardsEmpresa(empresaId) {
+  const section = document.getElementById('cards-section');
+  if (!section) return;
   const assoc = dados.cardAssoc.filter(a => a.empresa_id === empresaId);
-  return `
-    <div class="section">
+  if (!assoc.length) {
+    section.innerHTML = `<h3>Cards (0)</h3><p class="empty">Sem cards associados.</p>`;
+    return;
+  }
+
+  let restToken = null;
+  try {
+    const restApi = t.getRestApi();
+    if (await restApi.isAuthorized()) {
+      restToken = await restApi.getToken();
+    }
+  } catch (e) {}
+
+  if (!restToken) {
+    section.innerHTML = `
       <h3>Cards (${assoc.length})</h3>
-      ${assoc.length ? assoc.map(a => {
-        const card = cardMap[a.card_id];
-        const pessoa = dados.pessoas.find(p => p.pessoa_id === a.pessoa_id);
-        const nomePessoa = pessoa ? `${pessoa.nome} ${pessoa.apelido || ''}`.trim() : '';
-        const dt = dataCriacaoDoCardId(a.card_id);
-        const dataStr = dt ? 'Criado ' + dt.toLocaleDateString('pt-PT') : '';
-        const meta = [dataStr, nomePessoa].filter(Boolean).join(' · ');
-        if (card) {
-          return `<div class="card-link" data-card-id="${a.card_id}"><strong>${esc(card.name)}</strong>${meta ? `<span>${esc(meta)}</span>` : ''}</div>`;
-        }
-        return `<div class="card-link card-indisponivel"><strong>(card noutro board)</strong>${meta ? `<span>${esc(meta)}</span>` : ''}</div>`;
-      }).join('') : `<p class="empty">Sem cards associados.</p>`}
+      <p class="empty">Autoriza o acesso ao Trello para veres o board, a lista e o estado de cada card.</p>
+      <button id="btn-autorizar-trello" class="btn-secondary">Autorizar Trello</button>
+    `;
+    document.getElementById('btn-autorizar-trello').addEventListener('click', async () => {
+      try {
+        await t.getRestApi().authorize({ scope: 'read', expiration: 'never' });
+        renderCardsEmpresa(empresaId);
+      } catch (e) {
+        section.innerHTML = `<h3>Cards (${assoc.length})</h3><p class="empty">Não foi possível autorizar o acesso ao Trello.</p>`;
+      }
+    });
+    return;
+  }
+
+  const detalhes = await fetchCardsDetails(assoc.map(a => a.card_id), restToken);
+
+  section.innerHTML = `<h3>Cards (${assoc.length})</h3>` +
+    assoc.map(a => cardLinkHTML(a, detalhes[a.card_id])).join('');
+
+  section.querySelectorAll('.card-link[data-card-id]').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.cardId;
+      const det = detalhes[id];
+      if (det && det.idBoard === dados.boardId) {
+        t.showCard(id).catch(() => { if (det.url) window.open(det.url, '_blank'); });
+      } else if (det && det.url) {
+        window.open(det.url, '_blank');
+      } else {
+        t.showCard(id).catch(() => {});
+      }
+    });
+  });
+}
+
+async function fetchCardsDetails(cardIds, restToken) {
+  const result = {};
+  const key = AURATUS_CONFIG.TRELLO_API_KEY;
+  await Promise.all(cardIds.map(async id => {
+    try {
+      const url = `https://api.trello.com/1/cards/${id}?key=${key}&token=${restToken}` +
+        `&fields=name,closed,url,idBoard&board=true&board_fields=name&list=true&list_fields=name`;
+      const res = await fetch(url);
+      if (!res.ok) return;
+      result[id] = await res.json();
+    } catch (e) {}
+  }));
+  return result;
+}
+
+function cardLinkHTML(a, det) {
+  const pessoa = dados.pessoas.find(p => p.pessoa_id === a.pessoa_id);
+  const nomePessoa = pessoa ? `${pessoa.nome} ${pessoa.apelido || ''}`.trim() : '';
+  const dt = dataCriacaoDoCardId(a.card_id);
+  const dataStr = dt ? 'Criado ' + dt.toLocaleDateString('pt-PT') : '';
+  const metaEsq = [dataStr, nomePessoa].filter(Boolean).join(' · ');
+
+  const nome = det ? det.name : '(card não encontrado)';
+  const boardNome = det && det.board ? det.board.name : '—';
+  const listaNome = det && det.list ? det.list.name : '—';
+  const arquivado = det ? det.closed : false;
+  const estadoHTML = det
+    ? `<span class="card-estado ${arquivado ? 'arquivado' : 'ativo'}">${arquivado ? 'Arquivado' : 'Ativo'}</span>`
+    : '';
+
+  const attrs = det ? ` class="card-link" data-card-id="${a.card_id}"` : ` class="card-link card-indisponivel"`;
+  return `
+    <div${attrs}>
+      <div class="card-esq">
+        <strong>${esc(nome)}</strong>
+        ${metaEsq ? `<span>${esc(metaEsq)}</span>` : ''}
+      </div>
+      <div class="card-dir">
+        <span class="card-board">${esc(boardNome)}</span>
+        <span class="card-lista">${esc(listaNome)}</span>
+        ${estadoHTML}
+      </div>
     </div>
   `;
 }

@@ -316,14 +316,14 @@ h3 {
 }
 
 .card-link {
-  padding: 8px 10px;
+  padding: 8px 12px;
   border: 1px solid #dfe1e6;
   border-radius: 4px;
   margin-bottom: 6px;
   cursor: pointer;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: stretch;
+  gap: 12px;
   background: #fff;
 }
 
@@ -332,19 +332,66 @@ h3 {
   border-color: #0052cc;
 }
 
+.card-esq {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.card-dir {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+  padding-left: 12px;
+  border-left: 1px solid #dfe1e6;
+  min-width: 130px;
+}
+
 .card-link strong {
   font-size: 13px;
   color: #172b4d;
 }
 
-.card-link span {
+.card-esq span {
   font-size: 11px;
   color: #5e6c84;
 }
 
+.card-board {
+  font-size: 12px;
+  font-weight: 600;
+  color: #172b4d;
+}
+
+.card-lista {
+  font-size: 11px;
+  color: #5e6c84;
+}
+
+.card-estado {
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 1px 6px;
+  margin-top: 2px;
+}
+
+.card-estado.ativo {
+  background: #e3fcef;
+  color: #006644;
+}
+
+.card-estado.arquivado {
+  background: #ffebe6;
+  color: #bf2600;
+}
+
 .card-indisponivel {
   cursor: default;
-  opacity: 0.6;
+  opacity: 0.7;
 }
 
 .card-indisponivel:hover {
