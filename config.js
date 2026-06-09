@@ -1,7 +1,7 @@
 const AURATUS_CONFIG = {
   // Google OAuth 2.0
   CLIENT_ID: '158811393234-gv7tfjs8j122h1q3dg919q6dikupe2gk.apps.googleusercontent.com',
-  REDIRECT_URI: 'https://jerrythomas-85.github.io/auratus-trello-powerup/auth-callback.html',
+  REDIRECT_URI: 'https://auratus-trello-powerup.pages.dev/auth-callback.html',
   SCOPES: [
     'https://www.googleapis.com/auth/spreadsheets',
     'https://www.googleapis.com/auth/gmail.send',
