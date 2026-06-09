@@ -17,7 +17,7 @@ function abrirPesquisa(t) {
 function crmBadgeEmpresa(t) {
   return t.get('card', 'shared', 'crmBadge').then(function(badge) {
     if (!badge || !badge.empresa) return [];
-    return [{ text: badge.empresa.toUpperCase(), color: 'blue' }];
+    return [{ text: badge.empresa.toUpperCase(), color: badge.cor || 'blue' }];
   });
 }
 

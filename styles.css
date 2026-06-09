@@ -196,6 +196,27 @@ h3 {
   color: #de350b;
 }
 
+/* Seletor de cor do badge da empresa */
+.cor-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cor-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.cor-swatch.selecionado {
+  border-color: #172b4d;
+  box-shadow: inset 0 0 0 2px #fff;
+}
+
 /* ---- LOADING ---- */
 
 .loading {

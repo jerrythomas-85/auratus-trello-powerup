@@ -16,7 +16,7 @@ const SheetsAPI = {
   // ---- EMPRESAS ----
 
   async getEmpresas(token) {
-    const range = `${AURATUS_CONFIG.SHEETS.EMPRESAS}!A2:I`;
+    const range = `${AURATUS_CONFIG.SHEETS.EMPRESAS}!A2:J`;
     const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
     const res = await fetch(url, { headers: this.headers(token) });
     const data = await res.json();
@@ -30,7 +30,8 @@ const SheetsAPI = {
       data_inicio: row[5] || '',
       email: row[6] || '',
       telefone: row[7] || '',
-      notas: row[8] || ''
+      notas: row[8] || '',
+      cor: row[9] || ''
     }));
   },
 
@@ -45,7 +46,8 @@ const SheetsAPI = {
       empresa.data_inicio || '',
       empresa.email || '',
       empresa.telefone || '',
-      empresa.notas || ''
+      empresa.notas || '',
+      empresa.cor || ''
     ];
     await this._appendRow(token, AURATUS_CONFIG.SHEETS.EMPRESAS, row);
     return id;

@@ -9,6 +9,20 @@ let currentPessoa = null;
 let allEmpresas = [];
 let allPessoas = [];
 
+// Paleta de cores de badge suportadas pelo Trello (nome usado pela API + hex para o seletor).
+const TRELLO_CORES = [
+  { nome: 'green', hex: '#61bd4f' },
+  { nome: 'yellow', hex: '#f2d600' },
+  { nome: 'orange', hex: '#ff9f1a' },
+  { nome: 'red', hex: '#eb5a46' },
+  { nome: 'purple', hex: '#c377e0' },
+  { nome: 'blue', hex: '#0079bf' },
+  { nome: 'sky', hex: '#00c2e0' },
+  { nome: 'lime', hex: '#51e898' },
+  { nome: 'pink', hex: '#ff78cb' },
+  { nome: 'black', hex: '#344563' }
+];
+
 // ---- INIT ----
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -151,7 +165,7 @@ async function setBadgeLocal() {
   try {
     if (!currentPessoa || !currentEmpresa) return;
     const pessoa = ((currentPessoa.nome || '') + ' ' + (currentPessoa.apelido || '')).trim();
-    await t.set('card', 'shared', 'crmBadge', { pessoa, empresa: (currentEmpresa.nome || '').toUpperCase() });
+    await t.set('card', 'shared', 'crmBadge', { pessoa, empresa: (currentEmpresa.nome || '').toUpperCase(), cor: currentEmpresa.cor || 'blue' });
   } catch (e) {}
 }
 
@@ -425,6 +439,12 @@ function showFormNovaEmpresaInline(nomeInicial, token) {
         <label>Notas</label>
         <textarea id="emp-notas" placeholder="Notas internas..."></textarea>
       </div>
+      <div class="form-group">
+        <label>Cor do badge</label>
+        <div class="cor-palette" id="emp-cor-palette">
+          ${TRELLO_CORES.map(c => `<button type="button" class="cor-swatch${c.nome === 'blue' ? ' selecionado' : ''}" data-cor="${c.nome}" style="background:${c.hex}" title="${c.nome}"></button>`).join('')}
+        </div>
+      </div>
     </div>
   `;
 
@@ -443,6 +463,13 @@ function showFormNovaEmpresaInline(nomeInicial, token) {
     container.innerHTML = '';
     if (blocoEmpresa) blocoEmpresa.style.display = 'block';
     currentEmpresa = null;
+  });
+
+  container.querySelectorAll('#emp-cor-palette .cor-swatch').forEach(sw => {
+    sw.addEventListener('click', () => {
+      container.querySelectorAll('#emp-cor-palette .cor-swatch').forEach(s => s.classList.remove('selecionado'));
+      sw.classList.add('selecionado');
+    });
   });
 }
 
@@ -467,7 +494,8 @@ async function handleSaveNovaPessoa(token) {
       data_inicio: (document.getElementById('emp-data-inicio') || {value:''}).value,
       email: (document.getElementById('emp-email') || {value:''}).value.trim(),
       telefone: (document.getElementById('emp-telefone') || {value:''}).value.trim(),
-      notas: (document.getElementById('emp-notas') || {value:''}).value.trim()
+      notas: (document.getElementById('emp-notas') || {value:''}).value.trim(),
+      cor: (document.querySelector('#emp-cor-palette .cor-swatch.selecionado') || { dataset: {} }).dataset.cor || 'blue'
     };
   }
 
@@ -508,9 +536,10 @@ async function handleSaveNovaPessoa(token) {
       data_inicio,
       email: empDados.email,
       telefone: empDados.telefone,
-      notas: empDados.notas
+      notas: empDados.notas,
+      cor: empDados.cor
     });
-    currentEmpresa = { empresa_id, nome: empDados.nome, localizacao: empDados.localizacao, setor: empDados.setor, plano };
+    currentEmpresa = { empresa_id, nome: empDados.nome, localizacao: empDados.localizacao, setor: empDados.setor, plano, cor: empDados.cor };
     allEmpresas.push(currentEmpresa);
   }
 
