@@ -82,6 +82,14 @@ function renderEmpresasTab() {
   });
 }
 
+// Data de criação de um card: os primeiros 8 hex do ID do Trello são o timestamp Unix.
+function dataCriacaoDoCardId(cardId) {
+  if (!cardId || cardId.length < 8) return null;
+  const ts = parseInt(cardId.substring(0, 8), 16);
+  if (isNaN(ts)) return null;
+  return new Date(ts * 1000);
+}
+
 function mostrarDetalheEmpresa(empresaId) {
   const empresa = dados.empresas.find(e => e.empresa_id === empresaId);
   if (!empresa) return;
@@ -107,10 +115,13 @@ function mostrarDetalheEmpresa(empresaId) {
           const card = cardMap[a.card_id];
           const pessoa = dados.pessoas.find(p => p.pessoa_id === a.pessoa_id);
           const nomePessoa = pessoa ? `${pessoa.nome} ${pessoa.apelido || ''}`.trim() : '';
+          const dt = dataCriacaoDoCardId(a.card_id);
+          const dataStr = dt ? 'Criado ' + dt.toLocaleDateString('pt-PT') : '';
+          const meta = [dataStr, nomePessoa].filter(Boolean).join(' · ');
           if (card) {
-            return `<div class="card-link" data-card-id="${a.card_id}"><strong>${card.name}</strong>${nomePessoa ? `<span>${nomePessoa}</span>` : ''}</div>`;
+            return `<div class="card-link" data-card-id="${a.card_id}"><strong>${card.name}</strong>${meta ? `<span>${meta}</span>` : ''}</div>`;
           }
-          return `<div class="card-link card-indisponivel"><strong>(card noutro board)</strong>${nomePessoa ? `<span>${nomePessoa}</span>` : ''}</div>`;
+          return `<div class="card-link card-indisponivel"><strong>(card noutro board)</strong>${meta ? `<span>${meta}</span>` : ''}</div>`;
         }).join('') : `<p class="empty">Sem cards associados.</p>`}
       </div>
       <div class="detalhe-bloco">
