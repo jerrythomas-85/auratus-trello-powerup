@@ -7,7 +7,10 @@ let token = null;
 let dados = { empresas: [], pessoas: [], pessoaEmpresas: [], cardAssoc: [], boardId: null };
 
 document.addEventListener('DOMContentLoaded', async () => {
-  t = TrelloPowerUp.iframe();
+  t = TrelloPowerUp.iframe({
+    appKey: AURATUS_CONFIG.TRELLO_API_KEY,
+    appName: 'Auratus CRM'
+  });
   setupTabs();
   document.getElementById('tab-empresas').innerHTML = `<p class="empty">A carregar...</p>`;
   await carregarDados();
