@@ -15,6 +15,7 @@ let pessoaEmpresasMap = {};
 
 document.addEventListener('DOMContentLoaded', async () => {
   t = TrelloPowerUp.iframe();
+  Auth.init(t);
   if (window.CRM_EMBEDDED) {
     const panel = document.getElementById('crm-panel');
     new MutationObserver(() => t.sizeTo('#crm-panel')).observe(panel, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });

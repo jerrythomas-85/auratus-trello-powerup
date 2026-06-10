@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     appKey: AURATUS_CONFIG.TRELLO_API_KEY,
     appName: 'Auratus CRM'
   });
+  Auth.init(t);
   setupTabs();
   document.getElementById('tab-empresas').innerHTML = `<p class="empty">A carregar...</p>`;
   await carregarDados();

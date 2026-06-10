@@ -20,25 +20,42 @@
 <body>
   <p>A autenticar, aguarde...</p>
   <script>
-    const hash = window.location.hash.substring(1);
-    const params = new URLSearchParams(hash);
-    const accessToken = params.get('access_token');
-    const expiresIn = params.get('expires_in');
-    const error = params.get('error');
+    (async () => {
+      const msg = document.querySelector('p');
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      const error = params.get('error');
 
-    if (accessToken) {
-      const expiry = Date.now() + (parseInt(expiresIn) || 3600) * 1000;
-      const maxAge = parseInt(expiresIn) || 3600;
-      // Guarda em cookie acessível ao iframe
-      document.cookie = `auratus_token=${accessToken};max-age=${maxAge};path=/;SameSite=None;Secure`;
-      document.cookie = `auratus_expiry=${expiry};max-age=${maxAge};path=/;SameSite=None;Secure`;
-      document.querySelector('p').textContent = 'Autenticado! A fechar...';
-      setTimeout(() => window.close(), 500);
-    } else if (error) {
-      document.querySelector('p').textContent = 'Erro: ' + error;
-    } else {
-      document.querySelector('p').textContent = 'Sem token. Tenta novamente.';
-    }
+      if (error) { msg.textContent = 'Erro: ' + error; return; }
+      if (!code) { msg.textContent = 'Sem código de autorização. Tenta novamente.'; return; }
+
+      try {
+        const redirect_uri = window.location.origin + window.location.pathname;
+        const res = await fetch('/api/auth/exchange', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, redirect_uri })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.access_token) {
+          msg.textContent = 'Erro ao obter token: ' + (data.error || 'desconhecido');
+          return;
+        }
+
+        const maxAge = parseInt(data.expires_in) || 3600;
+        const expiry = Date.now() + maxAge * 1000;
+        document.cookie = `auratus_token=${data.access_token};max-age=${maxAge};path=/;SameSite=None;Secure`;
+        document.cookie = `auratus_expiry=${expiry};max-age=${maxAge};path=/;SameSite=None;Secure`;
+        if (data.refresh_token) {
+          document.cookie = `auratus_refresh=${data.refresh_token};max-age=${60 * 60 * 24 * 365};path=/;SameSite=None;Secure`;
+        }
+
+        msg.textContent = 'Autenticado! A fechar...';
+        setTimeout(() => window.close(), 400);
+      } catch (e) {
+        msg.textContent = 'Erro: ' + e;
+      }
+    })();
   </script>
 </body>
 </html>
