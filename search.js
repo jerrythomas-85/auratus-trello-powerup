@@ -375,13 +375,13 @@ function renderListaTab() {
           ${cidades.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
         </select>
       </div>
-      <div class="filtro-grupo">
-        <label>Criado de</label>
-        <input type="date" id="f-data-de" />
-      </div>
-      <div class="filtro-grupo">
-        <label>Criado até</label>
-        <input type="date" id="f-data-ate" />
+      <div class="filtro-grupo filtro-datas">
+        <label>Data de criação</label>
+        <div class="intervalo-datas">
+          <input type="date" id="f-data-de" title="De" />
+          <span>–</span>
+          <input type="date" id="f-data-ate" title="Até" />
+        </div>
       </div>
     </div>
     <div class="lista-acoes">
