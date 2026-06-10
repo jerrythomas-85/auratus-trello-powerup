@@ -528,7 +528,7 @@ function renderImportarTab() {
   panel.innerHTML = `
     <div class="section">
       <h2>Importar contactos</h2>
-      <p class="hint">Carrega um CSV ou cola os dados. Colunas: Nome, Apelido, Cargo, Função, Email, Telemóvel, Empresa, Distrito, Localidade, Setor. A 1ª linha é o cabeçalho. Só "Nome" é obrigatório.</p>
+      <p class="hint">Carrega um CSV ou cola os dados. Colunas: Nome, Apelido, Cargo, Função, Email, Telemóvel, Empresa, Distrito, Localidade, Setor, Cor. A 1ª linha é o cabeçalho. Só "Nome" é obrigatório.</p>
       <div class="form-group">
         <label>Ficheiro CSV</label>
         <input type="file" id="imp-ficheiro" accept=".csv,text/csv" />
@@ -560,7 +560,7 @@ function renderImportarTab() {
     processarImport(document.getElementById('imp-texto').value);
   });
   document.getElementById('imp-template').addEventListener('click', () => {
-    const csv = 'Nome,Apelido,Cargo,Função,Email,Telemóvel,Empresa,Distrito,Localidade,Setor\r\nJoão,Silva,Gerência,,joao@exemplo.pt,912345678,Restaurante X,Lisboa,Lisboa,Restaurante';
+    const csv = 'Nome,Apelido,Cargo,Função,Email,Telemóvel,Empresa,Distrito,Localidade,Setor,Cor\r\nJoão,Silva,Gerência,,joao@exemplo.pt,912345678,Restaurante X,Lisboa,Lisboa,Restaurante,blue';
     baixarCSV(csv, 'modelo-contactos.csv');
   });
 
@@ -621,7 +621,7 @@ function processarImport(texto) {
     email: 'email', 'e-mail': 'email', telemovel: 'telemovel', telefone: 'telemovel',
     empresa: 'empresa', distrito: 'distrito',
     localidade: 'localidade', cidade: 'localidade', localizacao: 'localidade',
-    setor: 'setor', sector: 'setor'
+    setor: 'setor', sector: 'setor', cor: 'cor'
   };
   const cab = linhas[0].map(normalizarCol);
   const idx = {};
@@ -631,12 +631,13 @@ function processarImport(texto) {
     return;
   }
 
-  const campos = ['nome', 'apelido', 'cargo', 'funcao', 'email', 'telemovel', 'empresa', 'distrito', 'localidade', 'setor'];
+  const campos = ['nome', 'apelido', 'cargo', 'funcao', 'email', 'telemovel', 'empresa', 'distrito', 'localidade', 'setor', 'cor'];
   importLinhas = linhas.slice(1).map(cols => {
     const o = { estado: 'pendente' };
     campos.forEach(f => { o[f] = idx[f] !== undefined ? (cols[idx[f]] || '').trim() : ''; });
     o.telemovel = limparTelemovel(o.telemovel);
     o.email = limparEmail(o.email);
+    o.cor = TRELLO_CORES.some(c => c.nome === o.cor) ? o.cor : 'blue';
     return o;
   }).filter(o => o.nome);
 
@@ -651,6 +652,13 @@ function selectImportHTML(id, opts, val) {
   const todas = (val && !opts.includes(val)) ? [val, ...opts] : opts;
   return `<select id="${id}"><option value="">—</option>${
     todas.map(o => `<option value="${esc(o)}" ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')
+  }</select>`;
+}
+
+function selectCorHTML(id, val) {
+  const sel = val || 'blue';
+  return `<select id="${id}">${
+    TRELLO_CORES.map(c => `<option value="${c.nome}" ${c.nome === sel ? 'selected' : ''} style="background:${c.hex}">${c.nome}</option>`).join('')
   }</select>`;
 }
 
@@ -674,7 +682,7 @@ async function guardarImportStaging() {
       .map(l => ({
         nome: l.nome, apelido: l.apelido, cargo: l.cargo, funcao: l.funcao,
         email: l.email, telemovel: l.telemovel, empresa: l.empresa,
-        distrito: l.distrito, localidade: l.localidade, setor: l.setor
+        distrito: l.distrito, localidade: l.localidade, setor: l.setor, cor: l.cor
       }));
     const antigoN = (await t.get('member', 'private', IMPORT_KEY + '_n')) || 0;
 
@@ -741,7 +749,7 @@ function renderImportStaging() {
         <thead>
           <tr>
             <th><input type="checkbox" id="imp-check-todos" /></th>
-            <th>Nome</th><th>Apelido</th><th>Cargo</th><th>Função</th><th>Email</th><th>Telemóvel</th><th>Empresa</th><th>Distrito</th><th>Localidade</th><th>Setor</th><th>Estado</th><th></th>
+            <th>Nome</th><th>Apelido</th><th>Cargo</th><th>Função</th><th>Email</th><th>Telemóvel</th><th>Empresa</th><th>Distrito</th><th>Localidade</th><th>Setor</th><th>Cor</th><th>Estado</th><th></th>
           </tr>
         </thead>
         <tbody>
@@ -782,6 +790,7 @@ function linhaImportHTML(l, i) {
       <td>✓</td>
       <td>${esc(l.nome)}</td><td>${esc(l.apelido)}</td><td>${esc(l.cargo)}</td><td>${esc(l.funcao)}</td>
       <td>${esc(l.email)}</td><td>${esc(l.telemovel)}</td><td>${esc(l.empresa)}</td><td>${esc(l.distrito)}</td><td>${esc(l.localidade)}</td><td>${esc(l.setor)}</td>
+      <td><span class="tag-dot" style="background:${hexDaCor(l.cor)}"></span>${esc(l.cor)}</td>
       <td><span class="imp-estado-ok">Importado</span></td><td></td>
     </tr>`;
   }
@@ -800,6 +809,7 @@ function linhaImportHTML(l, i) {
     <td><select id="imp-${i}-distrito"><option value="">—</option>${distritoOptionsHTML(l.distrito)}</select></td>
     <td><input type="text" id="imp-${i}-localidade" value="${esc(l.localidade)}" /></td>
     <td>${selectImportHTML('imp-' + i + '-setor', ['Restaurante', 'Outro'], l.setor)}</td>
+    <td>${selectCorHTML('imp-' + i + '-cor', l.cor)}</td>
     <td>${estado}</td>
     <td class="imp-acoes">
       <button class="btn-icon" id="imp-aprovar-${i}" title="Aprovar">✓</button>
@@ -811,7 +821,7 @@ function linhaImportHTML(l, i) {
 function sincronizarPendentes() {
   importLinhas.forEach((l, i) => {
     if (l.estado !== 'pendente') return;
-    ['nome', 'apelido', 'cargo', 'funcao', 'email', 'telemovel', 'empresa', 'distrito', 'localidade', 'setor'].forEach(c => {
+    ['nome', 'apelido', 'cargo', 'funcao', 'email', 'telemovel', 'empresa', 'distrito', 'localidade', 'setor', 'cor'].forEach(c => {
       const el = document.getElementById(`imp-${i}-${c}`);
       if (el) l[c] = el.value.trim();
     });
@@ -830,11 +840,12 @@ async function importarUmaLinha(i) {
       if (existente) {
         empresa_id = existente.empresa_id;
       } else {
+        const cor = l.cor || 'blue';
         empresa_id = await SheetsAPI.createEmpresa(token, {
           nome: l.empresa, distrito: l.distrito, localizacao: l.localidade, setor: l.setor || 'Outro',
-          plano: '', data_inicio: '', email: '', telefone: '', notas: '', cor: 'blue'
+          plano: '', data_inicio: '', email: '', telefone: '', notas: '', cor
         });
-        dados.empresas.push({ empresa_id, nome: l.empresa, distrito: l.distrito, localizacao: l.localidade, setor: l.setor || 'Outro', cor: 'blue' });
+        dados.empresas.push({ empresa_id, nome: l.empresa, distrito: l.distrito, localizacao: l.localidade, setor: l.setor || 'Outro', cor });
       }
     }
     const pessoa_id = await SheetsAPI.createPessoa(token, {
