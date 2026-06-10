@@ -19,6 +19,7 @@
 </head>
 <body>
   <p>A autenticar, aguarde...</p>
+  <script src="/config.js"></script>
   <script>
     (async () => {
       const msg = document.querySelector('p');
@@ -30,7 +31,9 @@
       if (!code) { msg.textContent = 'Sem código de autorização. Tenta novamente.'; return; }
 
       try {
-        const redirect_uri = window.location.origin + window.location.pathname;
+        // Tem de ser IDÊNTICO ao redirect_uri do pedido de auth (com .html).
+        // Não usar window.location, porque a Cloudflare tira o .html (clean URLs).
+        const redirect_uri = AURATUS_CONFIG.REDIRECT_URI;
         const res = await fetch('/api/auth/exchange', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
