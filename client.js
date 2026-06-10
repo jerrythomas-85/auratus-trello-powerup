@@ -6,9 +6,9 @@
 // (para fundos claros) e uma branca (para fundos escuros, ex.: header do board).
 function iconeContacto(cor) {
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="' + cor + '">'
-    + '<circle cx="12" cy="4" r="2.4"/>'
-    + '<path d="M7.5 10c0-2.7 2-3.8 4.5-3.8s4.5 1.1 4.5 3.8z"/>'
-    + '<path fill-rule="evenodd" d="M4 13a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM5.2 13.3 12 16.5l6.8-3.2v.9L12 17.4 5.2 14.2z"/>'
+    + '<circle cx="12" cy="4" r="3"/>'
+    + '<path d="M5.5 11c0-3.1 2.6-4.3 6.5-4.3s6.5 1.2 6.5 4.3z"/>'
+    + '<path fill-rule="evenodd" d="M2.5 13a1.2 1.2 0 0 1 1.2-1.2h16.6a1.2 1.2 0 0 1 1.2 1.2v8a1.2 1.2 0 0 1-1.2 1.2H3.7A1.2 1.2 0 0 1 2.5 21zM4 13.4 12 17.2l8-3.8v1.1L12 18.3 4 14.5z"/>'
     + '</svg>';
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
 }
@@ -50,7 +50,7 @@ TrelloPowerUp.initialize({
 
   'board-buttons': function(t, options) {
     return [{
-      icon: { dark: ICON_DARK, light: ICON_LIGHT },
+      icon: { dark: ICON_LIGHT, light: ICON_DARK },
       text: 'Ver CRM',
       callback: abrirPesquisa
     }];
