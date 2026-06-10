@@ -59,7 +59,7 @@ function renderEmpresasTab() {
       <div class="search-box">
         <input type="text" id="search-empresa-board" placeholder="Pesquisar empresa..." autocomplete="off" />
       </div>
-      <button id="btn-nova-empresa" class="btn-primary btn-novo">➕ Nova empresa</button>
+      <button id="btn-nova-empresa" class="btn-primary btn-novo">+ Nova empresa</button>
     </div>
     <div id="empresa-resultados" class="resultados"></div>
     <div id="empresa-detalhe"></div>
@@ -103,7 +103,7 @@ function renderPessoasTab() {
       <div class="search-box">
         <input type="text" id="search-pessoa-board" placeholder="Pesquisar pessoa..." autocomplete="off" />
       </div>
-      <button id="btn-nova-pessoa" class="btn-primary btn-novo">➕ Nova pessoa</button>
+      <button id="btn-nova-pessoa" class="btn-primary btn-novo">+ Nova pessoa</button>
     </div>
     <div id="pessoa-resultados" class="resultados"></div>
     <div id="pessoa-detalhe"></div>
@@ -290,7 +290,7 @@ function criarPessoaForm() {
       ${pessoaCamposHTML({})}
       <span class="field-error-msg" id="ed-p-aviso"></span>
     </div>
-    ${assocWidgetHTML('empresas', 'Associar empresas (opcional)', 'Pesquisar empresa...')}
+    ${assocWidgetHTML('empresas', 'Associar empresas * (pelo menos uma)', 'Pesquisar empresa...')}
     <div class="form-actions">
       <button id="ed-p-cancelar" class="btn-secondary">Cancelar</button>
       <button id="ed-p-guardar" class="btn-primary">Criar pessoa</button>
@@ -308,6 +308,10 @@ async function guardarNovaPessoa() {
     return;
   }
   const empresaIds = [...assocSel.empresas];
+  if (!empresaIds.length) {
+    document.getElementById('ed-p-aviso').textContent = 'Associa pelo menos uma empresa.';
+    return;
+  }
   const detalhe = document.getElementById('pessoa-detalhe');
   detalhe.innerHTML = `<p class="empty">A criar...</p>`;
   try {
@@ -1486,7 +1490,7 @@ function criarEmpresaForm() {
       ${empresaCamposHTML({})}
       <span class="field-error-msg" id="ed-aviso"></span>
     </div>
-    ${assocWidgetHTML('pessoas', 'Associar pessoas (opcional)', 'Pesquisar pessoa...')}
+    ${assocWidgetHTML('pessoas', 'Associar pessoas * (pelo menos uma)', 'Pesquisar pessoa...')}
     <div class="form-actions">
       <button id="ed-cancelar" class="btn-secondary">Cancelar</button>
       <button id="ed-guardar" class="btn-primary">Criar empresa</button>
@@ -1505,6 +1509,10 @@ async function guardarNovaEmpresa() {
     return;
   }
   const pessoaIds = [...assocSel.pessoas];
+  if (!pessoaIds.length) {
+    document.getElementById('ed-aviso').textContent = 'Associa pelo menos uma pessoa.';
+    return;
+  }
   const detalhe = document.getElementById('empresa-detalhe');
   detalhe.innerHTML = `<p class="empty">A criar...</p>`;
   try {
