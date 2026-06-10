@@ -654,10 +654,20 @@ function selectImportHTML(id, opts, val) {
   }</select>`;
 }
 
-const IMPORT_STORAGE_KEY = 'auratus_import_staging';
+// Lista de espera guardada no armazenamento do Power-Up (member/private),
+// que sincroniza pela conta Trello entre browser, app e dispositivos.
+// Dividida em blocos por causa do limite de ~4096 caracteres por chave.
+const IMPORT_KEY = 'importStaging';
+const IMPORT_CHUNK = 3000;
 
-// Guarda só as linhas pendentes (a "lista de espera") no browser.
-function guardarImportStaging() {
+let _saveTimer = null;
+function agendarGuardarStaging() {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => { guardarImportStaging(); }, 400);
+}
+
+async function guardarImportStaging() {
+  if (!t) return;
   try {
     const pendentes = importLinhas
       .filter(l => l.estado === 'pendente')
@@ -666,16 +676,31 @@ function guardarImportStaging() {
         email: l.email, telemovel: l.telemovel, empresa: l.empresa,
         distrito: l.distrito, localidade: l.localidade, setor: l.setor
       }));
-    if (pendentes.length) localStorage.setItem(IMPORT_STORAGE_KEY, JSON.stringify(pendentes));
-    else localStorage.removeItem(IMPORT_STORAGE_KEY);
+    const antigoN = (await t.get('member', 'private', IMPORT_KEY + '_n')) || 0;
+
+    if (!pendentes.length) {
+      for (let i = 0; i < antigoN; i++) await t.remove('member', 'private', IMPORT_KEY + '_' + i);
+      await t.remove('member', 'private', IMPORT_KEY + '_n');
+      return;
+    }
+
+    const json = JSON.stringify(pendentes);
+    const blocos = [];
+    for (let i = 0; i < json.length; i += IMPORT_CHUNK) blocos.push(json.slice(i, i + IMPORT_CHUNK));
+    for (let i = 0; i < blocos.length; i++) await t.set('member', 'private', IMPORT_KEY + '_' + i, blocos[i]);
+    for (let i = blocos.length; i < antigoN; i++) await t.remove('member', 'private', IMPORT_KEY + '_' + i);
+    await t.set('member', 'private', IMPORT_KEY + '_n', blocos.length);
   } catch (e) {}
 }
 
-function carregarImportStaging() {
+async function carregarImportStaging() {
+  if (!t) return;
   try {
-    const raw = localStorage.getItem(IMPORT_STORAGE_KEY);
-    if (!raw) return;
-    const arr = JSON.parse(raw);
+    const n = (await t.get('member', 'private', IMPORT_KEY + '_n')) || 0;
+    if (!n) return;
+    let json = '';
+    for (let i = 0; i < n; i++) json += (await t.get('member', 'private', IMPORT_KEY + '_' + i)) || '';
+    const arr = JSON.parse(json);
     if (Array.isArray(arr) && arr.length) {
       importLinhas = arr.map(o => ({ ...o, estado: 'pendente' }));
       renderImportStaging();
@@ -691,7 +716,7 @@ function limparImportStaging() {
 function renderImportStaging() {
   const cont = document.getElementById('imp-staging');
   if (!cont) return;
-  if (!importLinhas.length) { cont.innerHTML = ''; guardarImportStaging(); return; }
+  if (!importLinhas.length) { cont.innerHTML = ''; agendarGuardarStaging(); return; }
 
   importLinhas.forEach(l => {
     if (l.estado === 'pendente') {
@@ -745,9 +770,9 @@ function renderImportStaging() {
   });
 
   // Guarda as edições dos campos (ao sair de cada campo) na lista de espera.
-  cont.addEventListener('change', () => { sincronizarPendentes(); guardarImportStaging(); });
+  cont.addEventListener('change', () => { sincronizarPendentes(); agendarGuardarStaging(); });
 
-  guardarImportStaging();
+  agendarGuardarStaging();
 }
 
 function linhaImportHTML(l, i) {
