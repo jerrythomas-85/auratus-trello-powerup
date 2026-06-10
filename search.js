@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await carregarDados();
   renderEmpresasTab();
   renderPessoasTab();
+  renderListaTab();
 });
 
 function setupTabs() {
@@ -337,6 +338,169 @@ async function handleApagarPessoa(pessoaId) {
   } catch (err) {
     detalhe.innerHTML = `<p class="empty">Erro ao apagar: ${esc(err.message)}</p>`;
   }
+}
+
+// ---- SEPARADOR LISTA (filtros + exportar) ----
+
+function renderListaTab() {
+  const panel = document.getElementById('tab-lista');
+  const cidades = [...new Set(dados.empresas.map(e => e.localizacao).filter(Boolean))].sort();
+
+  panel.innerHTML = `
+    <div class="filtros">
+      <div class="filtro-grupo">
+        <label>Pesquisar</label>
+        <input type="text" id="f-texto" placeholder="Nome, email, empresa..." autocomplete="off" />
+      </div>
+      <div class="filtro-grupo">
+        <label>Setor</label>
+        <select id="f-setor">
+          <option value="">Todos</option>
+          <option value="Restaurante">Restaurante</option>
+          <option value="Outro">Outro</option>
+        </select>
+      </div>
+      <div class="filtro-grupo">
+        <label>Cargo</label>
+        <select id="f-cargo">
+          <option value="">Todos</option>
+          <option value="Gerência">Gerência</option>
+          <option value="Colaborador">Colaborador</option>
+        </select>
+      </div>
+      <div class="filtro-grupo">
+        <label>Cidade</label>
+        <select id="f-cidade">
+          <option value="">Todas</option>
+          ${cidades.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="filtro-grupo">
+        <label>Criado de</label>
+        <input type="date" id="f-data-de" />
+      </div>
+      <div class="filtro-grupo">
+        <label>Criado até</label>
+        <input type="date" id="f-data-ate" />
+      </div>
+    </div>
+    <div class="lista-acoes">
+      <span id="lista-contagem" class="hint"></span>
+      <button id="btn-exportar" class="btn-secondary btn-exportar">⬇️ Exportar CSV</button>
+    </div>
+    <div id="lista-tabela"></div>
+  `;
+
+  ['f-setor', 'f-cargo', 'f-cidade', 'f-data-de', 'f-data-ate'].forEach(id => {
+    document.getElementById(id).addEventListener('change', renderListaTabela);
+  });
+  document.getElementById('f-texto').addEventListener('input', renderListaTabela);
+  document.getElementById('btn-exportar').addEventListener('click', exportarListaCSV);
+
+  renderListaTabela();
+}
+
+function dataCriacaoDaPessoaId(pessoaId) {
+  const m = /^PES_(\d+)$/.exec(pessoaId || '');
+  if (!m) return null;
+  const ms = parseInt(m[1], 10);
+  return isNaN(ms) ? null : new Date(ms);
+}
+
+function contactosComEmpresa() {
+  return dados.pessoas.map(p => {
+    const empresa = dados.empresas.find(e => e.empresa_id === p.empresa_id) || null;
+    return {
+      pessoa: p,
+      nome: `${p.nome} ${p.apelido || ''}`.trim(),
+      cargo: p.cargo || '',
+      funcao: p.funcao || '',
+      email: p.email || '',
+      telemovel: p.telemovel || '',
+      empresaNome: empresa ? empresa.nome : '',
+      cidade: empresa ? (empresa.localizacao || '') : '',
+      setor: empresa ? (empresa.setor || '') : '',
+      criadoEm: dataCriacaoDaPessoaId(p.pessoa_id)
+    };
+  });
+}
+
+function filtrarContactos() {
+  const q = val('f-texto').toLowerCase().trim();
+  const setor = val('f-setor');
+  const cargo = val('f-cargo');
+  const cidade = val('f-cidade');
+  const dataDe = val('f-data-de');
+  const dataAte = val('f-data-ate');
+  const deTs = dataDe ? new Date(dataDe + 'T00:00:00').getTime() : null;
+  const ateTs = dataAte ? new Date(dataAte + 'T23:59:59').getTime() : null;
+
+  return contactosComEmpresa().filter(c => {
+    if (q && !`${c.nome} ${c.email} ${c.empresaNome}`.toLowerCase().includes(q)) return false;
+    if (setor && c.setor !== setor) return false;
+    if (cargo && c.cargo !== cargo) return false;
+    if (cidade && c.cidade !== cidade) return false;
+    if (deTs && (!c.criadoEm || c.criadoEm.getTime() < deTs)) return false;
+    if (ateTs && (!c.criadoEm || c.criadoEm.getTime() > ateTs)) return false;
+    return true;
+  });
+}
+
+function renderListaTabela() {
+  const lista = filtrarContactos();
+  document.getElementById('lista-contagem').textContent = `${lista.length} contacto(s)`;
+  const tabela = document.getElementById('lista-tabela');
+  if (!lista.length) {
+    tabela.innerHTML = `<p class="empty">Nenhum contacto com estes filtros.</p>`;
+    return;
+  }
+  tabela.innerHTML = `
+    <table class="crm-tabela">
+      <thead>
+        <tr>
+          <th>Nome</th><th>Cargo</th><th>Empresa</th><th>Cidade</th><th>Setor</th><th>Email</th><th>Telemóvel</th><th>Criado</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${lista.map(c => `
+          <tr>
+            <td>${esc(c.nome)}</td>
+            <td>${esc(c.cargo) || '—'}</td>
+            <td>${esc(c.empresaNome) || '—'}</td>
+            <td>${esc(c.cidade) || '—'}</td>
+            <td>${esc(c.setor) || '—'}</td>
+            <td>${esc(c.email) || '—'}</td>
+            <td>${esc(c.telemovel) || '—'}</td>
+            <td>${c.criadoEm ? c.criadoEm.toLocaleDateString('pt-PT') : '—'}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function csvCampo(v) {
+  const s = String(v == null ? '' : v);
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function exportarListaCSV() {
+  const lista = filtrarContactos();
+  const cabecalho = ['Nome', 'Apelido', 'Cargo', 'Função', 'Email', 'Telemóvel', 'Empresa', 'Cidade', 'Setor', 'Criado em'];
+  const linhas = lista.map(c => [
+    c.pessoa.nome || '', c.pessoa.apelido || '', c.cargo, c.funcao, c.email, c.telemovel,
+    c.empresaNome, c.cidade, c.setor, c.criadoEm ? c.criadoEm.toISOString().slice(0, 10) : ''
+  ]);
+  const csv = [cabecalho, ...linhas].map(r => r.map(csvCampo).join(',')).join('\r\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `crm-export-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // Data de criação de um card: os primeiros 8 hex do ID do Trello são o timestamp Unix.
