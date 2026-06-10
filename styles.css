@@ -365,6 +365,41 @@ h3 {
   margin-bottom: 12px;
 }
 
+.topo-aba {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.topo-aba .search-box {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.btn-novo {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.assoc-chip {
+  flex-direction: row !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.assoc-remover {
+  cursor: pointer;
+  color: #5e6c84;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.assoc-remover:hover {
+  color: #bf2600;
+}
+
 .search-box input {
   width: 100%;
   border: 1px solid #dfe1e6;

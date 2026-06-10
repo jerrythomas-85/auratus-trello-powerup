@@ -55,8 +55,11 @@ async function carregarDados() {
 function renderEmpresasTab() {
   const panel = document.getElementById('tab-empresas');
   panel.innerHTML = `
-    <div class="search-box">
-      <input type="text" id="search-empresa-board" placeholder="Pesquisar empresa..." autocomplete="off" />
+    <div class="topo-aba">
+      <div class="search-box">
+        <input type="text" id="search-empresa-board" placeholder="Pesquisar empresa..." autocomplete="off" />
+      </div>
+      <button id="btn-nova-empresa" class="btn-primary btn-novo">➕ Nova empresa</button>
     </div>
     <div id="empresa-resultados" class="resultados"></div>
     <div id="empresa-detalhe"></div>
@@ -64,6 +67,7 @@ function renderEmpresasTab() {
 
   const input = document.getElementById('search-empresa-board');
   const resultados = document.getElementById('empresa-resultados');
+  document.getElementById('btn-nova-empresa').addEventListener('click', criarEmpresaForm);
 
   input.addEventListener('input', function() {
     const q = this.value.toLowerCase().trim();
@@ -95,8 +99,11 @@ function renderEmpresasTab() {
 function renderPessoasTab() {
   const panel = document.getElementById('tab-pessoas');
   panel.innerHTML = `
-    <div class="search-box">
-      <input type="text" id="search-pessoa-board" placeholder="Pesquisar pessoa..." autocomplete="off" />
+    <div class="topo-aba">
+      <div class="search-box">
+        <input type="text" id="search-pessoa-board" placeholder="Pesquisar pessoa..." autocomplete="off" />
+      </div>
+      <button id="btn-nova-pessoa" class="btn-primary btn-novo">➕ Nova pessoa</button>
     </div>
     <div id="pessoa-resultados" class="resultados"></div>
     <div id="pessoa-detalhe"></div>
@@ -104,6 +111,7 @@ function renderPessoasTab() {
 
   const input = document.getElementById('search-pessoa-board');
   const resultados = document.getElementById('pessoa-resultados');
+  document.getElementById('btn-nova-pessoa').addEventListener('click', criarPessoaForm);
 
   input.addEventListener('input', function() {
     const q = this.value.toLowerCase().trim();
@@ -207,6 +215,31 @@ function empresasPessoaHTML(pessoaId) {
   `;
 }
 
+// ---- FORMULÁRIO DE PESSOA (partilhado entre criar e editar) ----
+function pessoaCamposHTML(pessoa) {
+  return `
+      <div class="form-grid">
+        <div class="form-group"><label>Nome *</label><input type="text" id="ed-p-nome" value="${esc(pessoa.nome || '')}" /></div>
+        <div class="form-group"><label>Apelido</label><input type="text" id="ed-p-apelido" value="${esc(pessoa.apelido || '')}" /></div>
+        <div class="form-group"><label>Cargo</label><input type="text" id="ed-p-cargo" value="${esc(pessoa.cargo || '')}" /></div>
+        <div class="form-group"><label>Função</label><input type="text" id="ed-p-funcao" value="${esc(pessoa.funcao || '')}" /></div>
+        <div class="form-group"><label>Email</label><input type="email" id="ed-p-email" value="${esc(pessoa.email || '')}" /></div>
+        <div class="form-group"><label>Telemóvel</label><input type="text" id="ed-p-telemovel" value="${esc(pessoa.telemovel || '')}" /></div>
+      </div>
+  `;
+}
+
+function lerPessoaForm() {
+  return {
+    nome: val('ed-p-nome').trim(),
+    apelido: val('ed-p-apelido').trim(),
+    cargo: val('ed-p-cargo').trim(),
+    funcao: val('ed-p-funcao').trim(),
+    email: val('ed-p-email').trim(),
+    telemovel: val('ed-p-telemovel').trim()
+  };
+}
+
 function editarPessoaForm(pessoaId) {
   const pessoa = dados.pessoas.find(p => p.pessoa_id === pessoaId);
   if (!pessoa) return;
@@ -214,14 +247,7 @@ function editarPessoaForm(pessoaId) {
   detalhe.innerHTML = `
     <div class="section">
       <h2>Editar pessoa</h2>
-      <div class="form-grid">
-        <div class="form-group"><label>Nome *</label><input type="text" id="ed-p-nome" value="${esc(pessoa.nome)}" /></div>
-        <div class="form-group"><label>Apelido</label><input type="text" id="ed-p-apelido" value="${esc(pessoa.apelido)}" /></div>
-        <div class="form-group"><label>Cargo</label><input type="text" id="ed-p-cargo" value="${esc(pessoa.cargo)}" /></div>
-        <div class="form-group"><label>Função</label><input type="text" id="ed-p-funcao" value="${esc(pessoa.funcao)}" /></div>
-        <div class="form-group"><label>Email</label><input type="email" id="ed-p-email" value="${esc(pessoa.email)}" /></div>
-        <div class="form-group"><label>Telemóvel</label><input type="text" id="ed-p-telemovel" value="${esc(pessoa.telemovel)}" /></div>
-      </div>
+      ${pessoaCamposHTML(pessoa)}
       <span class="field-error-msg" id="ed-p-aviso"></span>
       <div class="form-actions">
         <button id="ed-p-cancelar" class="btn-secondary">Cancelar</button>
@@ -229,25 +255,16 @@ function editarPessoaForm(pessoaId) {
       </div>
     </div>
   `;
-
   document.getElementById('ed-p-cancelar').addEventListener('click', () => mostrarDetalhePessoa(pessoaId));
   document.getElementById('ed-p-guardar').addEventListener('click', () => guardarPessoa(pessoaId));
 }
 
 async function guardarPessoa(pessoaId) {
-  const nome = val('ed-p-nome').trim();
-  if (!nome) {
+  const atualizada = lerPessoaForm();
+  if (!atualizada.nome) {
     document.getElementById('ed-p-aviso').textContent = 'O nome é obrigatório.';
     return;
   }
-  const atualizada = {
-    nome,
-    apelido: val('ed-p-apelido').trim(),
-    cargo: val('ed-p-cargo').trim(),
-    funcao: val('ed-p-funcao').trim(),
-    email: val('ed-p-email').trim(),
-    telemovel: val('ed-p-telemovel').trim()
-  };
   const detalhe = document.getElementById('pessoa-detalhe');
   detalhe.innerHTML = `<p class="empty">A guardar...</p>`;
   try {
@@ -257,6 +274,53 @@ async function guardarPessoa(pessoaId) {
     mostrarDetalhePessoa(pessoaId);
   } catch (err) {
     detalhe.innerHTML = `<p class="empty">Erro ao guardar: ${esc(err.message)}</p>`;
+  }
+}
+
+function criarPessoaForm() {
+  assocSel.empresas = new Set();
+  const resultados = document.getElementById('pessoa-resultados');
+  if (resultados) resultados.innerHTML = '';
+  const input = document.getElementById('search-pessoa-board');
+  if (input) input.value = '';
+  const detalhe = document.getElementById('pessoa-detalhe');
+  detalhe.innerHTML = `
+    <div class="section">
+      <h2>Nova pessoa</h2>
+      ${pessoaCamposHTML({})}
+      <span class="field-error-msg" id="ed-p-aviso"></span>
+    </div>
+    ${assocWidgetHTML('empresas', 'Associar empresas (opcional)', 'Pesquisar empresa...')}
+    <div class="form-actions">
+      <button id="ed-p-cancelar" class="btn-secondary">Cancelar</button>
+      <button id="ed-p-guardar" class="btn-primary">Criar pessoa</button>
+    </div>
+  `;
+  wireAssocWidget('empresas', assocItemsEmpresas());
+  document.getElementById('ed-p-cancelar').addEventListener('click', () => { detalhe.innerHTML = ''; });
+  document.getElementById('ed-p-guardar').addEventListener('click', guardarNovaPessoa);
+}
+
+async function guardarNovaPessoa() {
+  const p = lerPessoaForm();
+  if (!p.nome) {
+    document.getElementById('ed-p-aviso').textContent = 'O nome é obrigatório.';
+    return;
+  }
+  const empresaIds = [...assocSel.empresas];
+  const detalhe = document.getElementById('pessoa-detalhe');
+  detalhe.innerHTML = `<p class="empty">A criar...</p>`;
+  try {
+    const empresa_id = empresaIds[0] || '';
+    const pessoa_id = await SheetsAPI.createPessoa(token, { empresa_id, ...p });
+    dados.pessoas.push({ pessoa_id, empresa_id, ...p });
+    for (const eid of empresaIds) {
+      try { await SheetsAPI.addPessoaEmpresa(token, pessoa_id, eid); dados.pessoaEmpresas.push({ pessoa_id, empresa_id: eid }); } catch (err) {}
+    }
+    renderListaTab();
+    mostrarDetalhePessoa(pessoa_id);
+  } catch (err) {
+    detalhe.innerHTML = `<p class="empty">Erro ao criar: ${esc(err.message)}</p>`;
   }
 }
 
@@ -1234,23 +1298,79 @@ function camposPersonalizadosHTML(det, customFields) {
   return linhas.join('');
 }
 
-function editarEmpresaForm(empresaId) {
-  const empresa = dados.empresas.find(e => e.empresa_id === empresaId);
-  if (!empresa) return;
-  const corAtual = empresa.cor || 'blue';
-  const detalhe = document.getElementById('empresa-detalhe');
-  detalhe.innerHTML = `
+// ---- WIDGET DE ASSOCIAÇÃO MÚLTIPLA (reutilizável) ----
+const assocSel = { pessoas: new Set(), empresas: new Set() };
+
+function assocItemsPessoas() {
+  return dados.pessoas.map(p => ({ id: p.pessoa_id, label: `${p.nome} ${p.apelido || ''}`.trim(), sub: p.cargo || '' }));
+}
+function assocItemsEmpresas() {
+  return dados.empresas.map(e => ({ id: e.empresa_id, label: e.nome, sub: e.distrito || '' }));
+}
+
+function assocWidgetHTML(tipo, titulo, placeholder) {
+  return `
     <div class="section">
-      <h2>Editar empresa</h2>
+      <h3>${titulo}</h3>
+      <div class="search-box"><input type="text" id="assoc-search-${tipo}" placeholder="${placeholder}" autocomplete="off" /></div>
+      <div id="assoc-res-${tipo}" class="resultados"></div>
+      <div id="assoc-sel-${tipo}" class="pessoas-grid" style="margin-top:8px;"></div>
+    </div>
+  `;
+}
+
+function wireAssocWidget(tipo, items) {
+  const input = document.getElementById('assoc-search-' + tipo);
+  const res = document.getElementById('assoc-res-' + tipo);
+  input.addEventListener('input', function() {
+    const q = this.value.toLowerCase().trim();
+    if (!q) { res.innerHTML = ''; return; }
+    const sel = assocSel[tipo];
+    const filtrados = items.filter(it => !sel.has(it.id) && it.label.toLowerCase().includes(q)).slice(0, 8);
+    res.innerHTML = filtrados.length
+      ? filtrados.map(it => `<div class="resultado-item" data-id="${esc(it.id)}"><strong>${esc(it.label)}</strong>${it.sub ? `<span>${esc(it.sub)}</span>` : ''}</div>`).join('')
+      : `<p class="empty">Nada encontrado.</p>`;
+    res.querySelectorAll('.resultado-item').forEach(el => {
+      el.addEventListener('click', () => {
+        sel.add(el.dataset.id);
+        input.value = '';
+        res.innerHTML = '';
+        renderAssocSel(tipo, items);
+      });
+    });
+  });
+  renderAssocSel(tipo, items);
+}
+
+function renderAssocSel(tipo, items) {
+  const cont = document.getElementById('assoc-sel-' + tipo);
+  if (!cont) return;
+  const sel = assocSel[tipo];
+  const lista = [...sel].map(id => items.find(it => it.id === id)).filter(Boolean);
+  cont.innerHTML = lista.length
+    ? lista.map(it => `<div class="resultado-item selecionado assoc-chip" data-id="${esc(it.id)}"><strong>${esc(it.label)}</strong><span class="assoc-remover" title="Remover">✕</span></div>`).join('')
+    : `<p class="empty">Nenhum selecionado.</p>`;
+  cont.querySelectorAll('.assoc-remover').forEach(x => {
+    x.addEventListener('click', () => {
+      sel.delete(x.closest('.assoc-chip').dataset.id);
+      renderAssocSel(tipo, items);
+    });
+  });
+}
+
+// ---- FORMULÁRIO DE EMPRESA (partilhado entre criar e editar) ----
+function empresaCamposHTML(empresa) {
+  const corAtual = empresa.cor || 'blue';
+  return `
       <div class="form-grid">
-        <div class="form-group"><label>Nome *</label><input type="text" id="ed-nome" value="${esc(empresa.nome)}" /></div>
+        <div class="form-group"><label>Nome *</label><input type="text" id="ed-nome" value="${esc(empresa.nome || '')}" /></div>
         <div class="form-group"><label>Distrito *</label>
           <select id="ed-distrito">
             <option value="">— Selecionar —</option>
             ${distritoOptionsHTML(empresa.distrito)}
           </select>
         </div>
-        <div class="form-group"><label>Localidade</label><input type="text" id="ed-localizacao" value="${esc(empresa.localizacao)}" /></div>
+        <div class="form-group"><label>Localidade</label><input type="text" id="ed-localizacao" value="${esc(empresa.localizacao || '')}" /></div>
         <div class="form-group"><label>Setor *</label>
           <select id="ed-setor">
             <option value="">— Selecionar —</option>
@@ -1268,26 +1388,22 @@ function editarEmpresaForm(empresaId) {
             </select>
           </div>
           <div id="ed-form-data" style="display:${(empresa.plano && empresa.plano !== 'Sem Avença') ? 'block' : 'none'};">
-            <div class="form-group"><label>Data de Início</label><input type="date" id="ed-data-inicio" value="${esc(empresa.data_inicio)}" /></div>
+            <div class="form-group"><label>Data de Início</label><input type="date" id="ed-data-inicio" value="${esc(empresa.data_inicio || '')}" /></div>
           </div>
         </div>
-        <div class="form-group"><label>Email</label><input type="email" id="ed-email" value="${esc(empresa.email)}" /></div>
-        <div class="form-group"><label>Telefone</label><input type="text" id="ed-telefone" value="${esc(empresa.telefone)}" /></div>
+        <div class="form-group"><label>Email</label><input type="email" id="ed-email" value="${esc(empresa.email || '')}" /></div>
+        <div class="form-group"><label>Telefone</label><input type="text" id="ed-telefone" value="${esc(empresa.telefone || '')}" /></div>
       </div>
-      <div class="form-group"><label>Notas</label><textarea id="ed-notas">${esc(empresa.notas)}</textarea></div>
+      <div class="form-group"><label>Notas</label><textarea id="ed-notas">${esc(empresa.notas || '')}</textarea></div>
       <div class="form-group"><label>Cor do badge</label>
         <div class="cor-palette" id="ed-cor-palette">
           ${TRELLO_CORES.map(c => `<button type="button" class="cor-swatch${c.nome === corAtual ? ' selecionado' : ''}" data-cor="${c.nome}" style="background:${c.hex}" title="${c.nome}"></button>`).join('')}
         </div>
       </div>
-      <span class="field-error-msg" id="ed-aviso"></span>
-      <div class="form-actions">
-        <button id="ed-cancelar" class="btn-secondary">Cancelar</button>
-        <button id="ed-guardar" class="btn-primary">Guardar</button>
-      </div>
-    </div>
   `;
+}
 
+function wireEmpresaCampos() {
   document.getElementById('ed-setor').addEventListener('change', function() {
     document.getElementById('ed-form-restaurante').style.display = this.value === 'Restaurante' ? 'block' : 'none';
   });
@@ -1300,34 +1416,51 @@ function editarEmpresaForm(empresaId) {
       sw.classList.add('selecionado');
     });
   });
-  document.getElementById('ed-cancelar').addEventListener('click', () => mostrarDetalheEmpresa(empresaId));
-  document.getElementById('ed-guardar').addEventListener('click', () => guardarEmpresa(empresaId));
 }
 
-async function guardarEmpresa(empresaId) {
-  const nome = val('ed-nome').trim();
-  const distrito = val('ed-distrito');
-  const localizacao = val('ed-localizacao').trim();
+function lerEmpresaForm() {
   const setor = val('ed-setor');
-  if (!nome || !distrito || !setor) {
-    document.getElementById('ed-aviso').textContent = 'Nome, distrito e setor são obrigatórios.';
-    return;
-  }
   const plano = setor === 'Restaurante' ? val('ed-plano') : '';
   const data_inicio = (plano && plano !== 'Sem Avença') ? val('ed-data-inicio') : '';
   const cor = (document.querySelector('#ed-cor-palette .cor-swatch.selecionado') || { dataset: {} }).dataset.cor || 'blue';
-  const atualizada = {
-    nome,
-    distrito,
-    localizacao,
-    setor,
-    plano,
-    data_inicio,
+  return {
+    nome: val('ed-nome').trim(),
+    distrito: val('ed-distrito'),
+    localizacao: val('ed-localizacao').trim(),
+    setor, plano, data_inicio,
     email: val('ed-email').trim(),
     telefone: val('ed-telefone').trim(),
     notas: val('ed-notas').trim(),
     cor
   };
+}
+
+function editarEmpresaForm(empresaId) {
+  const empresa = dados.empresas.find(e => e.empresa_id === empresaId);
+  if (!empresa) return;
+  const detalhe = document.getElementById('empresa-detalhe');
+  detalhe.innerHTML = `
+    <div class="section">
+      <h2>Editar empresa</h2>
+      ${empresaCamposHTML(empresa)}
+      <span class="field-error-msg" id="ed-aviso"></span>
+      <div class="form-actions">
+        <button id="ed-cancelar" class="btn-secondary">Cancelar</button>
+        <button id="ed-guardar" class="btn-primary">Guardar</button>
+      </div>
+    </div>
+  `;
+  wireEmpresaCampos();
+  document.getElementById('ed-cancelar').addEventListener('click', () => mostrarDetalheEmpresa(empresaId));
+  document.getElementById('ed-guardar').addEventListener('click', () => guardarEmpresa(empresaId));
+}
+
+async function guardarEmpresa(empresaId) {
+  const atualizada = lerEmpresaForm();
+  if (!atualizada.nome || !atualizada.distrito || !atualizada.setor) {
+    document.getElementById('ed-aviso').textContent = 'Nome, distrito e setor são obrigatórios.';
+    return;
+  }
   const detalhe = document.getElementById('empresa-detalhe');
   detalhe.innerHTML = `<p class="empty">A guardar...</p>`;
   try {
@@ -1337,5 +1470,52 @@ async function guardarEmpresa(empresaId) {
     mostrarDetalheEmpresa(empresaId);
   } catch (err) {
     detalhe.innerHTML = `<p class="empty">Erro ao guardar: ${esc(err.message)}</p>`;
+  }
+}
+
+function criarEmpresaForm() {
+  assocSel.pessoas = new Set();
+  const resultados = document.getElementById('empresa-resultados');
+  if (resultados) resultados.innerHTML = '';
+  const input = document.getElementById('search-empresa-board');
+  if (input) input.value = '';
+  const detalhe = document.getElementById('empresa-detalhe');
+  detalhe.innerHTML = `
+    <div class="section">
+      <h2>Nova empresa</h2>
+      ${empresaCamposHTML({})}
+      <span class="field-error-msg" id="ed-aviso"></span>
+    </div>
+    ${assocWidgetHTML('pessoas', 'Associar pessoas (opcional)', 'Pesquisar pessoa...')}
+    <div class="form-actions">
+      <button id="ed-cancelar" class="btn-secondary">Cancelar</button>
+      <button id="ed-guardar" class="btn-primary">Criar empresa</button>
+    </div>
+  `;
+  wireEmpresaCampos();
+  wireAssocWidget('pessoas', assocItemsPessoas());
+  document.getElementById('ed-cancelar').addEventListener('click', () => { detalhe.innerHTML = ''; });
+  document.getElementById('ed-guardar').addEventListener('click', guardarNovaEmpresa);
+}
+
+async function guardarNovaEmpresa() {
+  const e = lerEmpresaForm();
+  if (!e.nome || !e.distrito || !e.setor) {
+    document.getElementById('ed-aviso').textContent = 'Nome, distrito e setor são obrigatórios.';
+    return;
+  }
+  const pessoaIds = [...assocSel.pessoas];
+  const detalhe = document.getElementById('empresa-detalhe');
+  detalhe.innerHTML = `<p class="empty">A criar...</p>`;
+  try {
+    const empresa_id = await SheetsAPI.createEmpresa(token, e);
+    dados.empresas.push({ empresa_id, ...e });
+    for (const pid of pessoaIds) {
+      try { await SheetsAPI.addPessoaEmpresa(token, pid, empresa_id); dados.pessoaEmpresas.push({ pessoa_id: pid, empresa_id }); } catch (err) {}
+    }
+    renderListaTab();
+    mostrarDetalheEmpresa(empresa_id);
+  } catch (err) {
+    detalhe.innerHTML = `<p class="empty">Erro ao criar: ${esc(err.message)}</p>`;
   }
 }
