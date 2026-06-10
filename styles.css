@@ -400,6 +400,21 @@ h3 {
   color: #bf2600;
 }
 
+.assoc-nova-box {
+  border: 1px solid #dfe1e6;
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 8px;
+  background: #f4f5f7;
+}
+
+.assoc-nova-box h4 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #172b4d;
+  margin-bottom: 8px;
+}
+
 .search-box input {
   width: 100%;
   border: 1px solid #dfe1e6;

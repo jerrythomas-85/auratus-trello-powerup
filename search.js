@@ -278,7 +278,7 @@ async function guardarPessoa(pessoaId) {
 }
 
 function criarPessoaForm() {
-  assocSel.empresas = new Set();
+  assocSel.empresas = { existentes: new Set(), novas: [] };
   const resultados = document.getElementById('pessoa-resultados');
   if (resultados) resultados.innerHTML = '';
   const input = document.getElementById('search-pessoa-board');
@@ -296,7 +296,7 @@ function criarPessoaForm() {
       <button id="ed-p-guardar" class="btn-primary">Criar pessoa</button>
     </div>
   `;
-  wireAssocWidget('empresas', assocItemsEmpresas());
+  wireAssocWidget('empresas');
   document.getElementById('ed-p-cancelar').addEventListener('click', () => { detalhe.innerHTML = ''; });
   document.getElementById('ed-p-guardar').addEventListener('click', guardarNovaPessoa);
 }
@@ -307,20 +307,28 @@ async function guardarNovaPessoa() {
     document.getElementById('ed-p-aviso').textContent = 'O nome é obrigatório.';
     return;
   }
-  const empresaIds = [...assocSel.empresas];
-  if (!empresaIds.length) {
+  const existentes = [...assocSel.empresas.existentes];
+  const novas = assocSel.empresas.novas;
+  if (!existentes.length && !novas.length) {
     document.getElementById('ed-p-aviso').textContent = 'Associa pelo menos uma empresa.';
     return;
   }
   const detalhe = document.getElementById('pessoa-detalhe');
   detalhe.innerHTML = `<p class="empty">A criar...</p>`;
   try {
-    const empresa_id = empresaIds[0] || '';
-    const pessoa_id = await SheetsAPI.createPessoa(token, { empresa_id, ...p });
-    dados.pessoas.push({ pessoa_id, empresa_id, ...p });
+    const empresaIds = [...existentes];
+    for (const n of novas) {
+      const empresa_id = await SheetsAPI.createEmpresa(token, n.dados);
+      dados.empresas.push({ empresa_id, ...n.dados });
+      empresaIds.push(empresa_id);
+    }
+    const empresaPrincipal = empresaIds[0] || '';
+    const pessoa_id = await SheetsAPI.createPessoa(token, { empresa_id: empresaPrincipal, ...p });
+    dados.pessoas.push({ pessoa_id, empresa_id: empresaPrincipal, ...p });
     for (const eid of empresaIds) {
       try { await SheetsAPI.addPessoaEmpresa(token, pessoa_id, eid); dados.pessoaEmpresas.push({ pessoa_id, empresa_id: eid }); } catch (err) {}
     }
+    renderEmpresasTab();
     renderListaTab();
     mostrarDetalhePessoa(pessoa_id);
   } catch (err) {
@@ -1302,8 +1310,11 @@ function camposPersonalizadosHTML(det, customFields) {
   return linhas.join('');
 }
 
-// ---- WIDGET DE ASSOCIAÇÃO MÚLTIPLA (reutilizável) ----
-const assocSel = { pessoas: new Set(), empresas: new Set() };
+// ---- WIDGET DE ASSOCIAÇÃO MÚLTIPLA (com criação inline) ----
+const assocSel = {
+  pessoas: { existentes: new Set(), novas: [] },
+  empresas: { existentes: new Set(), novas: [] }
+};
 
 function assocItemsPessoas() {
   return dados.pessoas.map(p => ({ id: p.pessoa_id, label: `${p.nome} ${p.apelido || ''}`.trim(), sub: p.cargo || '' }));
@@ -1312,52 +1323,125 @@ function assocItemsEmpresas() {
   return dados.empresas.map(e => ({ id: e.empresa_id, label: e.nome, sub: e.distrito || '' }));
 }
 
+const assocConfig = {
+  pessoas: {
+    singular: 'pessoa',
+    items: assocItemsPessoas,
+    nomeId: 'ed-p-nome',
+    miniForm: () => pessoaCamposHTML({}),
+    wireMini: () => {},
+    ler: () => lerPessoaForm(),
+    validar: d => d.nome ? null : 'O nome é obrigatório.',
+    label: d => `${d.nome} ${d.apelido || ''}`.trim()
+  },
+  empresas: {
+    singular: 'empresa',
+    items: assocItemsEmpresas,
+    nomeId: 'ed-nome',
+    miniForm: () => empresaCamposHTML({}),
+    wireMini: () => wireEmpresaCampos(),
+    ler: () => lerEmpresaForm(),
+    validar: d => (d.nome && d.distrito && d.setor) ? null : 'Nome, distrito e setor são obrigatórios.',
+    label: d => d.nome
+  }
+};
+
 function assocWidgetHTML(tipo, titulo, placeholder) {
+  const cfg = assocConfig[tipo];
   return `
     <div class="section">
       <h3>${titulo}</h3>
       <div class="search-box"><input type="text" id="assoc-search-${tipo}" placeholder="${placeholder}" autocomplete="off" /></div>
       <div id="assoc-res-${tipo}" class="resultados"></div>
+      <button type="button" id="assoc-criar-${tipo}" class="btn-secondary" style="margin-top:6px;">+ Criar nova ${cfg.singular}</button>
+      <div id="assoc-novaform-${tipo}"></div>
       <div id="assoc-sel-${tipo}" class="pessoas-grid" style="margin-top:8px;"></div>
     </div>
   `;
 }
 
-function wireAssocWidget(tipo, items) {
+function wireAssocWidget(tipo) {
+  const cfg = assocConfig[tipo];
   const input = document.getElementById('assoc-search-' + tipo);
   const res = document.getElementById('assoc-res-' + tipo);
   input.addEventListener('input', function() {
     const q = this.value.toLowerCase().trim();
     if (!q) { res.innerHTML = ''; return; }
-    const sel = assocSel[tipo];
-    const filtrados = items.filter(it => !sel.has(it.id) && it.label.toLowerCase().includes(q)).slice(0, 8);
+    const sel = assocSel[tipo].existentes;
+    const filtrados = cfg.items().filter(it => !sel.has(it.id) && it.label.toLowerCase().includes(q)).slice(0, 8);
     res.innerHTML = filtrados.length
       ? filtrados.map(it => `<div class="resultado-item" data-id="${esc(it.id)}"><strong>${esc(it.label)}</strong>${it.sub ? `<span>${esc(it.sub)}</span>` : ''}</div>`).join('')
-      : `<p class="empty">Nada encontrado.</p>`;
+      : `<p class="empty">Nada encontrado. Cria nova abaixo.</p>`;
     res.querySelectorAll('.resultado-item').forEach(el => {
       el.addEventListener('click', () => {
         sel.add(el.dataset.id);
         input.value = '';
         res.innerHTML = '';
-        renderAssocSel(tipo, items);
+        renderAssocSel(tipo);
       });
     });
   });
-  renderAssocSel(tipo, items);
+  document.getElementById('assoc-criar-' + tipo).addEventListener('click', () => abrirNovaInline(tipo));
+  renderAssocSel(tipo);
 }
 
-function renderAssocSel(tipo, items) {
+function abrirNovaInline(tipo) {
+  const cfg = assocConfig[tipo];
+  const cont = document.getElementById('assoc-novaform-' + tipo);
+  const prefill = (document.getElementById('assoc-search-' + tipo) || { value: '' }).value.trim();
+  cont.innerHTML = `
+    <div class="assoc-nova-box">
+      <h4>Nova ${cfg.singular}</h4>
+      ${cfg.miniForm()}
+      <span class="field-error-msg" id="assoc-nova-aviso-${tipo}"></span>
+      <div class="form-actions">
+        <button type="button" id="assoc-nova-cancelar-${tipo}" class="btn-secondary">Cancelar</button>
+        <button type="button" id="assoc-nova-add-${tipo}" class="btn-primary">Adicionar</button>
+      </div>
+    </div>
+  `;
+  cfg.wireMini();
+  if (prefill) { const n = document.getElementById(cfg.nomeId); if (n) n.value = prefill; }
+  document.getElementById('assoc-criar-' + tipo).style.display = 'none';
+  document.getElementById('assoc-nova-cancelar-' + tipo).addEventListener('click', () => fecharNovaInline(tipo));
+  document.getElementById('assoc-nova-add-' + tipo).addEventListener('click', () => adicionarNovaInline(tipo));
+}
+
+function fecharNovaInline(tipo) {
+  document.getElementById('assoc-novaform-' + tipo).innerHTML = '';
+  const btn = document.getElementById('assoc-criar-' + tipo);
+  if (btn) btn.style.display = '';
+}
+
+function adicionarNovaInline(tipo) {
+  const cfg = assocConfig[tipo];
+  const dadosNova = cfg.ler();
+  const erro = cfg.validar(dadosNova);
+  if (erro) { document.getElementById('assoc-nova-aviso-' + tipo).textContent = erro; return; }
+  const tempId = 'novo_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  assocSel[tipo].novas.push({ tempId, dados: dadosNova, label: cfg.label(dadosNova) });
+  fecharNovaInline(tipo);
+  renderAssocSel(tipo);
+}
+
+function renderAssocSel(tipo) {
   const cont = document.getElementById('assoc-sel-' + tipo);
   if (!cont) return;
-  const sel = assocSel[tipo];
-  const lista = [...sel].map(id => items.find(it => it.id === id)).filter(Boolean);
-  cont.innerHTML = lista.length
-    ? lista.map(it => `<div class="resultado-item selecionado assoc-chip" data-id="${esc(it.id)}"><strong>${esc(it.label)}</strong><span class="assoc-remover" title="Remover">✕</span></div>`).join('')
+  const items = assocConfig[tipo].items();
+  const existentes = [...assocSel[tipo].existentes]
+    .map(id => { const it = items.find(x => x.id === id); return it ? { key: 'e:' + id, label: it.label, novo: false } : null; })
+    .filter(Boolean);
+  const novas = assocSel[tipo].novas.map(n => ({ key: 'n:' + n.tempId, label: n.label, novo: true }));
+  const todas = existentes.concat(novas);
+  cont.innerHTML = todas.length
+    ? todas.map(c => `<div class="resultado-item selecionado assoc-chip" data-key="${esc(c.key)}"><strong>${esc(c.label)}${c.novo ? ' (nova)' : ''}</strong><span class="assoc-remover" title="Remover">✕</span></div>`).join('')
     : `<p class="empty">Nenhum selecionado.</p>`;
   cont.querySelectorAll('.assoc-remover').forEach(x => {
     x.addEventListener('click', () => {
-      sel.delete(x.closest('.assoc-chip').dataset.id);
-      renderAssocSel(tipo, items);
+      const key = x.closest('.assoc-chip').dataset.key;
+      if (key.startsWith('e:')) assocSel[tipo].existentes.delete(key.slice(2));
+      else assocSel[tipo].novas = assocSel[tipo].novas.filter(n => n.tempId !== key.slice(2));
+      renderAssocSel(tipo);
     });
   });
 }
@@ -1478,7 +1562,7 @@ async function guardarEmpresa(empresaId) {
 }
 
 function criarEmpresaForm() {
-  assocSel.pessoas = new Set();
+  assocSel.pessoas = { existentes: new Set(), novas: [] };
   const resultados = document.getElementById('empresa-resultados');
   if (resultados) resultados.innerHTML = '';
   const input = document.getElementById('search-empresa-board');
@@ -1497,7 +1581,7 @@ function criarEmpresaForm() {
     </div>
   `;
   wireEmpresaCampos();
-  wireAssocWidget('pessoas', assocItemsPessoas());
+  wireAssocWidget('pessoas');
   document.getElementById('ed-cancelar').addEventListener('click', () => { detalhe.innerHTML = ''; });
   document.getElementById('ed-guardar').addEventListener('click', guardarNovaEmpresa);
 }
@@ -1508,8 +1592,9 @@ async function guardarNovaEmpresa() {
     document.getElementById('ed-aviso').textContent = 'Nome, distrito e setor são obrigatórios.';
     return;
   }
-  const pessoaIds = [...assocSel.pessoas];
-  if (!pessoaIds.length) {
+  const existentes = [...assocSel.pessoas.existentes];
+  const novas = assocSel.pessoas.novas;
+  if (!existentes.length && !novas.length) {
     document.getElementById('ed-aviso').textContent = 'Associa pelo menos uma pessoa.';
     return;
   }
@@ -1518,9 +1603,15 @@ async function guardarNovaEmpresa() {
   try {
     const empresa_id = await SheetsAPI.createEmpresa(token, e);
     dados.empresas.push({ empresa_id, ...e });
-    for (const pid of pessoaIds) {
+    for (const pid of existentes) {
       try { await SheetsAPI.addPessoaEmpresa(token, pid, empresa_id); dados.pessoaEmpresas.push({ pessoa_id: pid, empresa_id }); } catch (err) {}
     }
+    for (const n of novas) {
+      const pessoa_id = await SheetsAPI.createPessoa(token, { empresa_id, ...n.dados });
+      dados.pessoas.push({ pessoa_id, empresa_id, ...n.dados });
+      try { await SheetsAPI.addPessoaEmpresa(token, pessoa_id, empresa_id); dados.pessoaEmpresas.push({ pessoa_id, empresa_id }); } catch (err) {}
+    }
+    renderPessoasTab();
     renderListaTab();
     mostrarDetalheEmpresa(empresa_id);
   } catch (err) {
