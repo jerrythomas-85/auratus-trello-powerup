@@ -259,22 +259,28 @@ async function guardarPessoa(pessoaId) {
   }
 }
 
+// Pessoas que só pertencem a esta empresa (serão apagadas em cascata).
+function pessoasOrfasDaEmpresa(empresaId) {
+  const pessoaIds = new Set([
+    ...dados.pessoaEmpresas.filter(pe => pe.empresa_id === empresaId).map(pe => pe.pessoa_id),
+    ...dados.pessoas.filter(p => p.empresa_id === empresaId).map(p => p.pessoa_id)
+  ]);
+  const orfas = [];
+  pessoaIds.forEach(pid => {
+    const set = new Set(dados.pessoaEmpresas.filter(pe => pe.pessoa_id === pid).map(pe => pe.empresa_id));
+    const p = dados.pessoas.find(x => x.pessoa_id === pid);
+    if (p && p.empresa_id) set.add(p.empresa_id);
+    if ([...set].every(e => e === empresaId)) orfas.push(pid);
+  });
+  return orfas;
+}
+
 function apagarEmpresaConfirm(empresaId) {
   const empresa = dados.empresas.find(e => e.empresa_id === empresaId);
   if (!empresa) return;
 
   const nCards = dados.cardAssoc.filter(a => a.empresa_id === empresaId).length;
-  const pessoaIds = new Set([
-    ...dados.pessoaEmpresas.filter(pe => pe.empresa_id === empresaId).map(pe => pe.pessoa_id),
-    ...dados.pessoas.filter(p => p.empresa_id === empresaId).map(p => p.pessoa_id)
-  ]);
-  let nOrfas = 0;
-  pessoaIds.forEach(pid => {
-    const set = new Set(dados.pessoaEmpresas.filter(pe => pe.pessoa_id === pid).map(pe => pe.empresa_id));
-    const p = dados.pessoas.find(x => x.pessoa_id === pid);
-    if (p && p.empresa_id) set.add(p.empresa_id);
-    if ([...set].every(e => e === empresaId)) nOrfas++;
-  });
+  const nOrfas = pessoasOrfasDaEmpresa(empresaId).length;
 
   const extras = [];
   if (nCards) extras.push(`${nCards} associação(ões) de cards`);
@@ -300,9 +306,14 @@ async function handleApagarEmpresa(empresaId) {
   const detalhe = document.getElementById('empresa-detalhe');
   detalhe.innerHTML = `<p class="empty">A apagar...</p>`;
   try {
+    const orfas = new Set(pessoasOrfasDaEmpresa(empresaId));
     await SheetsAPI.deleteEmpresa(token, empresaId);
-    await carregarDados();
+    dados.empresas = dados.empresas.filter(e => e.empresa_id !== empresaId);
+    dados.pessoas = dados.pessoas.filter(p => !orfas.has(p.pessoa_id));
+    dados.pessoaEmpresas = dados.pessoaEmpresas.filter(pe => pe.empresa_id !== empresaId && !orfas.has(pe.pessoa_id));
+    dados.cardAssoc = dados.cardAssoc.filter(a => a.empresa_id !== empresaId && !orfas.has(a.pessoa_id));
     renderEmpresasTab();
+    renderListaTab();
   } catch (err) {
     detalhe.innerHTML = `<p class="empty">Erro ao apagar: ${esc(err.message)}</p>`;
   }
@@ -335,8 +346,11 @@ async function handleApagarPessoa(pessoaId) {
   detalhe.innerHTML = `<p class="empty">A apagar...</p>`;
   try {
     await SheetsAPI.deletePessoa(token, pessoaId);
-    await carregarDados();
+    dados.pessoas = dados.pessoas.filter(p => p.pessoa_id !== pessoaId);
+    dados.pessoaEmpresas = dados.pessoaEmpresas.filter(pe => pe.pessoa_id !== pessoaId);
+    dados.cardAssoc = dados.cardAssoc.filter(a => a.pessoa_id !== pessoaId);
     renderPessoasTab();
+    renderListaTab();
   } catch (err) {
     detalhe.innerHTML = `<p class="empty">Erro ao apagar: ${esc(err.message)}</p>`;
   }
