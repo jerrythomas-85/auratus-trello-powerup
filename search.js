@@ -563,6 +563,8 @@ function renderImportarTab() {
     const csv = 'Nome,Apelido,Cargo,Função,Email,Telemóvel,Empresa,Distrito,Localidade,Setor\r\nJoão,Silva,Gerência,,joao@exemplo.pt,912345678,Restaurante X,Lisboa,Lisboa,Restaurante';
     baixarCSV(csv, 'modelo-contactos.csv');
   });
+
+  carregarImportStaging();
 }
 
 function normalizarCol(s) {
@@ -652,9 +654,44 @@ function selectImportHTML(id, opts, val) {
   }</select>`;
 }
 
+const IMPORT_STORAGE_KEY = 'auratus_import_staging';
+
+// Guarda só as linhas pendentes (a "lista de espera") no browser.
+function guardarImportStaging() {
+  try {
+    const pendentes = importLinhas
+      .filter(l => l.estado === 'pendente')
+      .map(l => ({
+        nome: l.nome, apelido: l.apelido, cargo: l.cargo, funcao: l.funcao,
+        email: l.email, telemovel: l.telemovel, empresa: l.empresa,
+        distrito: l.distrito, localidade: l.localidade, setor: l.setor
+      }));
+    if (pendentes.length) localStorage.setItem(IMPORT_STORAGE_KEY, JSON.stringify(pendentes));
+    else localStorage.removeItem(IMPORT_STORAGE_KEY);
+  } catch (e) {}
+}
+
+function carregarImportStaging() {
+  try {
+    const raw = localStorage.getItem(IMPORT_STORAGE_KEY);
+    if (!raw) return;
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr) && arr.length) {
+      importLinhas = arr.map(o => ({ ...o, estado: 'pendente' }));
+      renderImportStaging();
+    }
+  } catch (e) {}
+}
+
+function limparImportStaging() {
+  importLinhas = [];
+  renderImportStaging();
+}
+
 function renderImportStaging() {
   const cont = document.getElementById('imp-staging');
-  if (!importLinhas.length) { cont.innerHTML = ''; return; }
+  if (!cont) return;
+  if (!importLinhas.length) { cont.innerHTML = ''; guardarImportStaging(); return; }
 
   importLinhas.forEach(l => {
     if (l.estado === 'pendente') {
@@ -669,6 +706,7 @@ function renderImportStaging() {
     <div class="lista-acoes" style="margin-top:16px;">
       <span class="hint">${nPend} pendente(s) · ${nOk} importado(s)</span>
       <span class="imp-bulk-acoes">
+        <button id="imp-limpar" class="btn-link btn-danger">Limpar lista</button>
         <button id="imp-recusar-sel" class="btn-secondary" style="flex:0 0 auto;">Recusar selecionados</button>
         <button id="imp-aprovar-sel" class="btn-primary" style="flex:0 0 auto;">Aprovar selecionados</button>
       </span>
@@ -697,6 +735,7 @@ function renderImportStaging() {
   });
   document.getElementById('imp-aprovar-sel').addEventListener('click', aprovarSelecionados);
   document.getElementById('imp-recusar-sel').addEventListener('click', recusarSelecionados);
+  document.getElementById('imp-limpar').addEventListener('click', limparImportStaging);
   importLinhas.forEach((l, i) => {
     if (l.estado !== 'pendente') return;
     const btnA = document.getElementById('imp-aprovar-' + i);
@@ -704,6 +743,11 @@ function renderImportStaging() {
     if (btnA) btnA.addEventListener('click', () => aprovarLinha(i));
     if (btnR) btnR.addEventListener('click', () => recusarLinha(i));
   });
+
+  // Guarda as edições dos campos (ao sair de cada campo) na lista de espera.
+  cont.addEventListener('change', () => { sincronizarPendentes(); guardarImportStaging(); });
+
+  guardarImportStaging();
 }
 
 function linhaImportHTML(l, i) {
