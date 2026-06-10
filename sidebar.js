@@ -100,7 +100,8 @@ function showClientePanel(token) {
         <button class="btn-link" id="btn-expandir-empresa" title="Ver dados da empresa">▾</button>
       </div>
       <div id="empresa-detalhes" style="display:none;">
-        <div class="info-row"><span class="label">Localização</span><span>${e.localizacao || '—'}</span></div>
+        <div class="info-row"><span class="label">Distrito</span><span>${e.distrito || '—'}</span></div>
+        ${e.localizacao ? `<div class="info-row"><span class="label">Localidade</span><span>${e.localizacao}</span></div>` : ''}
         <div class="info-row"><span class="label">Setor</span><span>${e.setor || '—'}</span></div>
         ${e.setor === 'Restaurante' ? `<div class="info-row"><span class="label">Plano</span><span>${e.plano || '—'}</span></div>` : ''}
         ${e.email ? `<div class="info-row"><span class="label">Email</span><span>${e.email}</span></div>` : ''}
@@ -389,6 +390,7 @@ async function resolverEmpresa(token) {
   if (inlineVisivel) {
     const empDados = {
       nome: (document.getElementById('emp-nome') || {value:''}).value.trim(),
+      distrito: (document.getElementById('emp-distrito') || {value:''}).value,
       localizacao: (document.getElementById('emp-localizacao') || {value:''}).value.trim(),
       setor: (document.getElementById('emp-setor') || {value:''}).value,
       plano: (document.getElementById('emp-plano') || {value:''}).value,
@@ -398,9 +400,9 @@ async function resolverEmpresa(token) {
       notas: (document.getElementById('emp-notas') || {value:''}).value.trim(),
       cor: (document.querySelector('#emp-cor-palette .cor-swatch.selecionado') || { dataset: {} }).dataset.cor || 'blue'
     };
-    if (!empDados.nome || !empDados.localizacao || !empDados.setor) {
+    if (!empDados.nome || !empDados.distrito || !empDados.setor) {
       if (!empDados.nome) showFieldError('emp-nome', 'Obrigatório');
-      if (!empDados.localizacao) showFieldError('emp-localizacao', 'Obrigatório');
+      if (!empDados.distrito) showFieldError('emp-distrito', 'Obrigatório');
       if (!empDados.setor) showFieldError('emp-setor', 'Obrigatório');
       return { ok: false };
     }
@@ -409,6 +411,7 @@ async function resolverEmpresa(token) {
     const data_inicio = (plano && plano !== 'Sem Avença') ? empDados.data_inicio : '';
     const empresa_id = await SheetsAPI.createEmpresa(token, {
       nome: empDados.nome,
+      distrito: empDados.distrito,
       localizacao: empDados.localizacao,
       setor: empDados.setor,
       plano,
@@ -418,7 +421,7 @@ async function resolverEmpresa(token) {
       notas: empDados.notas,
       cor: empDados.cor
     });
-    const empresa = { empresa_id, nome: empDados.nome, localizacao: empDados.localizacao, setor: empDados.setor, plano, cor: empDados.cor };
+    const empresa = { empresa_id, nome: empDados.nome, distrito: empDados.distrito, localizacao: empDados.localizacao, setor: empDados.setor, plano, cor: empDados.cor };
     allEmpresas.push(empresa);
     currentEmpresa = empresa;
     return { ok: true, empresa };
@@ -605,7 +608,7 @@ function renderResultadosEmpresa(container, empresas, token) {
   container.innerHTML = empresas.map(e => `
     <div class="resultado-item ${currentEmpresa && currentEmpresa.empresa_id === e.empresa_id ? 'selecionado' : ''}" data-empresa-id="${e.empresa_id}">
       <strong>${e.nome}</strong>
-      <span>${e.localizacao} · ${e.setor}</span>
+      <span>${e.distrito || e.localizacao || ''}${e.setor ? ' · ' + e.setor : ''}</span>
     </div>
   `).join('');
 
@@ -641,8 +644,15 @@ function showFormNovaEmpresaInline(nomeInicial, token) {
         <input type="text" id="emp-nome" value="${nomeInicial}" placeholder="Nome da empresa" />
       </div>
       <div class="form-group">
-        <label>Localização *</label>
-        <input type="text" id="emp-localizacao" placeholder="Cidade / Concelho" />
+        <label>Distrito *</label>
+        <select id="emp-distrito">
+          <option value="">— Selecionar —</option>
+          ${distritoOptionsHTML('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Localidade</label>
+        <input type="text" id="emp-localizacao" placeholder="Cidade / Localidade" />
       </div>
       <div class="form-group">
         <label>Setor *</label>

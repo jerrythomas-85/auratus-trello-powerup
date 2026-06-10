@@ -16,7 +16,7 @@ const SheetsAPI = {
   // ---- EMPRESAS ----
 
   async getEmpresas(token) {
-    const range = `${AURATUS_CONFIG.SHEETS.EMPRESAS}!A2:J`;
+    const range = `${AURATUS_CONFIG.SHEETS.EMPRESAS}!A2:K`;
     const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
     const res = await fetch(url, { headers: this.headers(token) });
     const data = await res.json();
@@ -31,7 +31,8 @@ const SheetsAPI = {
       email: row[6] || '',
       telefone: row[7] || '',
       notas: row[8] || '',
-      cor: row[9] || ''
+      cor: row[9] || '',
+      distrito: row[10] || ''
     }));
   },
 
@@ -47,21 +48,22 @@ const SheetsAPI = {
       empresa.email || '',
       empresa.telefone || '',
       empresa.notas || '',
-      empresa.cor || ''
+      empresa.cor || '',
+      empresa.distrito || ''
     ];
     await this._appendRow(token, AURATUS_CONFIG.SHEETS.EMPRESAS, row);
     return id;
   },
 
   async updateEmpresa(token, empresa_id, empresa) {
-    const range = `${AURATUS_CONFIG.SHEETS.EMPRESAS}!A2:J`;
+    const range = `${AURATUS_CONFIG.SHEETS.EMPRESAS}!A2:K`;
     const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
     const res = await fetch(url, { headers: this.headers(token) });
     const data = await res.json();
     if (!data.values) return;
     const rowIndex = data.values.findIndex(r => r[0] === empresa_id);
     if (rowIndex === -1) return;
-    const updateRange = `${AURATUS_CONFIG.SHEETS.EMPRESAS}!A${rowIndex + 2}:J${rowIndex + 2}`;
+    const updateRange = `${AURATUS_CONFIG.SHEETS.EMPRESAS}!A${rowIndex + 2}:K${rowIndex + 2}`;
     const updateURL = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${updateRange}?valueInputOption=RAW`;
     await fetch(updateURL, {
       method: 'PUT',
@@ -78,7 +80,8 @@ const SheetsAPI = {
           empresa.email || '',
           empresa.telefone || '',
           empresa.notas || '',
-          empresa.cor || ''
+          empresa.cor || '',
+          empresa.distrito || ''
         ]]
       })
     });

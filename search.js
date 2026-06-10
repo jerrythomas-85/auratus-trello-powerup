@@ -73,7 +73,7 @@ function renderEmpresasTab() {
       ? filtradas.map(e => `
           <div class="resultado-item" data-empresa-id="${e.empresa_id}">
             <strong>${e.nome}</strong>
-            <span>${e.localizacao || ''}${e.setor ? ' · ' + e.setor : ''}</span>
+            <span>${e.distrito || e.localizacao || ''}${e.setor ? ' · ' + e.setor : ''}</span>
           </div>
         `).join('')
       : `<p class="empty">Nenhuma empresa encontrada.</p>`;
@@ -199,7 +199,7 @@ function empresasPessoaHTML(pessoaId) {
         ${empresas.map((e, i) => `
         <div class="resultado-item empresa-filtro${!mostrarTodas && i === 0 ? ' selecionado' : ''}" data-empresa-id="${esc(e.empresa_id)}">
           <strong>${esc(e.nome)}</strong>
-          <span>${esc(e.localizacao) || ''}${e.setor ? ' · ' + esc(e.setor) : ''}</span>
+          <span>${esc(e.distrito) || esc(e.localizacao) || ''}${e.setor ? ' · ' + esc(e.setor) : ''}</span>
         </div>
       `).join('')}</div>` : `<p class="empty">Sem empresas associadas.</p>`}
     </div>
@@ -346,7 +346,7 @@ async function handleApagarPessoa(pessoaId) {
 
 function renderListaTab() {
   const panel = document.getElementById('tab-lista');
-  const cidades = [...new Set(dados.empresas.map(e => e.localizacao).filter(Boolean))].sort();
+  const distritos = [...new Set(dados.empresas.map(e => e.distrito).filter(Boolean))].sort();
 
   panel.innerHTML = `
     <div class="filtros">
@@ -371,10 +371,10 @@ function renderListaTab() {
         </select>
       </div>
       <div class="filtro-grupo">
-        <label>Cidade</label>
-        <select id="f-cidade">
-          <option value="">Todas</option>
-          ${cidades.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
+        <label>Distrito</label>
+        <select id="f-distrito">
+          <option value="">Todos</option>
+          ${distritos.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('')}
         </select>
       </div>
       <div class="filtro-grupo filtro-datas">
@@ -393,7 +393,7 @@ function renderListaTab() {
     <div id="lista-tabela"></div>
   `;
 
-  ['f-setor', 'f-cargo', 'f-cidade', 'f-data-de', 'f-data-ate'].forEach(id => {
+  ['f-setor', 'f-cargo', 'f-distrito', 'f-data-de', 'f-data-ate'].forEach(id => {
     document.getElementById(id).addEventListener('change', renderListaTabela);
   });
   document.getElementById('f-texto').addEventListener('input', renderListaTabela);
@@ -420,7 +420,8 @@ function contactosComEmpresa() {
       email: p.email || '',
       telemovel: p.telemovel || '',
       empresaNome: empresa ? empresa.nome : '',
-      cidade: empresa ? (empresa.localizacao || '') : '',
+      distrito: empresa ? (empresa.distrito || '') : '',
+      localidade: empresa ? (empresa.localizacao || '') : '',
       setor: empresa ? (empresa.setor || '') : '',
       criadoEm: dataCriacaoDaPessoaId(p.pessoa_id)
     };
@@ -431,7 +432,7 @@ function filtrarContactos() {
   const q = val('f-texto').toLowerCase().trim();
   const setor = val('f-setor');
   const cargo = val('f-cargo');
-  const cidade = val('f-cidade');
+  const distrito = val('f-distrito');
   const dataDe = val('f-data-de');
   const dataAte = val('f-data-ate');
   const deTs = dataDe ? new Date(dataDe + 'T00:00:00').getTime() : null;
@@ -441,7 +442,7 @@ function filtrarContactos() {
     if (q && !`${c.nome} ${c.email} ${c.empresaNome}`.toLowerCase().includes(q)) return false;
     if (setor && c.setor !== setor) return false;
     if (cargo && c.cargo !== cargo) return false;
-    if (cidade && c.cidade !== cidade) return false;
+    if (distrito && c.distrito !== distrito) return false;
     if (deTs && (!c.criadoEm || c.criadoEm.getTime() < deTs)) return false;
     if (ateTs && (!c.criadoEm || c.criadoEm.getTime() > ateTs)) return false;
     return true;
@@ -460,7 +461,7 @@ function renderListaTabela() {
     <table class="crm-tabela">
       <thead>
         <tr>
-          <th>Nome</th><th>Cargo</th><th>Empresa</th><th>Cidade</th><th>Setor</th><th>Email</th><th>Telemóvel</th><th>Criado</th>
+          <th>Nome</th><th>Cargo</th><th>Empresa</th><th>Distrito</th><th>Setor</th><th>Email</th><th>Telemóvel</th><th>Criado</th>
         </tr>
       </thead>
       <tbody>
@@ -469,7 +470,7 @@ function renderListaTabela() {
             <td>${esc(c.nome)}</td>
             <td>${esc(c.cargo) || '—'}</td>
             <td>${esc(c.empresaNome) || '—'}</td>
-            <td>${esc(c.cidade) || '—'}</td>
+            <td>${esc(c.distrito) || '—'}</td>
             <td>${esc(c.setor) || '—'}</td>
             <td>${esc(c.email) || '—'}</td>
             <td>${esc(c.telemovel) || '—'}</td>
@@ -503,10 +504,10 @@ function csvCampo(v) {
 
 function exportarListaCSV() {
   const lista = filtrarContactos();
-  const cabecalho = ['Nome', 'Apelido', 'Cargo', 'Função', 'Email', 'Telemóvel', 'Empresa', 'Cidade', 'Setor', 'Criado em'];
+  const cabecalho = ['Nome', 'Apelido', 'Cargo', 'Função', 'Email', 'Telemóvel', 'Empresa', 'Distrito', 'Localidade', 'Setor', 'Criado em'];
   const linhas = lista.map(c => [
     c.pessoa.nome || '', c.pessoa.apelido || '', c.cargo, c.funcao, c.email, c.telemovel,
-    c.empresaNome, c.cidade, c.setor, c.criadoEm ? c.criadoEm.toISOString().slice(0, 10) : ''
+    c.empresaNome, c.distrito, c.localidade, c.setor, c.criadoEm ? c.criadoEm.toISOString().slice(0, 10) : ''
   ]);
   const csv = [cabecalho, ...linhas].map(r => r.map(csvCampo).join(',')).join('\r\n');
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -527,14 +528,14 @@ function renderImportarTab() {
   panel.innerHTML = `
     <div class="section">
       <h2>Importar contactos</h2>
-      <p class="hint">Carrega um CSV ou cola os dados. Colunas: Nome, Apelido, Cargo, Função, Email, Telemóvel, Empresa, Cidade, Setor. A 1ª linha é o cabeçalho. Só "Nome" é obrigatório.</p>
+      <p class="hint">Carrega um CSV ou cola os dados. Colunas: Nome, Apelido, Cargo, Função, Email, Telemóvel, Empresa, Distrito, Localidade, Setor. A 1ª linha é o cabeçalho. Só "Nome" é obrigatório.</p>
       <div class="form-group">
         <label>Ficheiro CSV</label>
         <input type="file" id="imp-ficheiro" accept=".csv,text/csv" />
       </div>
       <div class="form-group">
         <label>...ou colar aqui</label>
-        <textarea id="imp-texto" placeholder="Nome,Apelido,Cargo,Email,Empresa,Cidade,Setor&#10;João,Silva,Gerência,joao@x.pt,Restaurante X,Lisboa,Restaurante"></textarea>
+        <textarea id="imp-texto" placeholder="Nome,Apelido,Cargo,Email,Empresa,Distrito,Localidade,Setor&#10;João,Silva,Gerência,joao@x.pt,Restaurante X,Lisboa,Lisboa,Restaurante"></textarea>
       </div>
       <div class="form-actions">
         <button id="imp-template" class="btn-secondary">⬇️ Modelo CSV</button>
@@ -559,7 +560,7 @@ function renderImportarTab() {
     processarImport(document.getElementById('imp-texto').value);
   });
   document.getElementById('imp-template').addEventListener('click', () => {
-    const csv = 'Nome,Apelido,Cargo,Função,Email,Telemóvel,Empresa,Cidade,Setor\r\nJoão,Silva,Gerência,,joao@exemplo.pt,912345678,Restaurante X,Lisboa,Restaurante';
+    const csv = 'Nome,Apelido,Cargo,Função,Email,Telemóvel,Empresa,Distrito,Localidade,Setor\r\nJoão,Silva,Gerência,,joao@exemplo.pt,912345678,Restaurante X,Lisboa,Lisboa,Restaurante';
     baixarCSV(csv, 'modelo-contactos.csv');
   });
 }
@@ -616,7 +617,9 @@ function processarImport(texto) {
   const mapa = {
     nome: 'nome', apelido: 'apelido', cargo: 'cargo', funcao: 'funcao',
     email: 'email', 'e-mail': 'email', telemovel: 'telemovel', telefone: 'telemovel',
-    empresa: 'empresa', cidade: 'cidade', localizacao: 'cidade', setor: 'setor', sector: 'setor'
+    empresa: 'empresa', distrito: 'distrito',
+    localidade: 'localidade', cidade: 'localidade', localizacao: 'localidade',
+    setor: 'setor', sector: 'setor'
   };
   const cab = linhas[0].map(normalizarCol);
   const idx = {};
@@ -626,7 +629,7 @@ function processarImport(texto) {
     return;
   }
 
-  const campos = ['nome', 'apelido', 'cargo', 'funcao', 'email', 'telemovel', 'empresa', 'cidade', 'setor'];
+  const campos = ['nome', 'apelido', 'cargo', 'funcao', 'email', 'telemovel', 'empresa', 'distrito', 'localidade', 'setor'];
   importLinhas = linhas.slice(1).map(cols => {
     const o = { estado: 'pendente' };
     campos.forEach(f => { o[f] = idx[f] !== undefined ? (cols[idx[f]] || '').trim() : ''; });
@@ -675,7 +678,7 @@ function renderImportStaging() {
         <thead>
           <tr>
             <th><input type="checkbox" id="imp-check-todos" /></th>
-            <th>Nome</th><th>Apelido</th><th>Cargo</th><th>Função</th><th>Email</th><th>Telemóvel</th><th>Empresa</th><th>Cidade</th><th>Setor</th><th>Estado</th><th></th>
+            <th>Nome</th><th>Apelido</th><th>Cargo</th><th>Função</th><th>Email</th><th>Telemóvel</th><th>Empresa</th><th>Distrito</th><th>Localidade</th><th>Setor</th><th>Estado</th><th></th>
           </tr>
         </thead>
         <tbody>
@@ -709,7 +712,7 @@ function linhaImportHTML(l, i) {
     return `<tr class="imp-importado">
       <td>✓</td>
       <td>${esc(l.nome)}</td><td>${esc(l.apelido)}</td><td>${esc(l.cargo)}</td><td>${esc(l.funcao)}</td>
-      <td>${esc(l.email)}</td><td>${esc(l.telemovel)}</td><td>${esc(l.empresa)}</td><td>${esc(l.cidade)}</td><td>${esc(l.setor)}</td>
+      <td>${esc(l.email)}</td><td>${esc(l.telemovel)}</td><td>${esc(l.empresa)}</td><td>${esc(l.distrito)}</td><td>${esc(l.localidade)}</td><td>${esc(l.setor)}</td>
       <td><span class="imp-estado-ok">Importado</span></td><td></td>
     </tr>`;
   }
@@ -725,7 +728,8 @@ function linhaImportHTML(l, i) {
     <td><input type="text" id="imp-${i}-email" value="${esc(l.email)}" /></td>
     <td><input type="text" id="imp-${i}-telemovel" value="${esc(l.telemovel)}" /></td>
     <td><input type="text" id="imp-${i}-empresa" value="${esc(l.empresa)}" /></td>
-    <td><input type="text" id="imp-${i}-cidade" value="${esc(l.cidade)}" /></td>
+    <td><select id="imp-${i}-distrito"><option value="">—</option>${distritoOptionsHTML(l.distrito)}</select></td>
+    <td><input type="text" id="imp-${i}-localidade" value="${esc(l.localidade)}" /></td>
     <td>${selectImportHTML('imp-' + i + '-setor', ['Restaurante', 'Outro'], l.setor)}</td>
     <td>${estado}</td>
     <td class="imp-acoes">
@@ -738,7 +742,7 @@ function linhaImportHTML(l, i) {
 function sincronizarPendentes() {
   importLinhas.forEach((l, i) => {
     if (l.estado !== 'pendente') return;
-    ['nome', 'apelido', 'cargo', 'funcao', 'email', 'telemovel', 'empresa', 'cidade', 'setor'].forEach(c => {
+    ['nome', 'apelido', 'cargo', 'funcao', 'email', 'telemovel', 'empresa', 'distrito', 'localidade', 'setor'].forEach(c => {
       const el = document.getElementById(`imp-${i}-${c}`);
       if (el) l[c] = el.value.trim();
     });
@@ -758,10 +762,10 @@ async function importarUmaLinha(i) {
         empresa_id = existente.empresa_id;
       } else {
         empresa_id = await SheetsAPI.createEmpresa(token, {
-          nome: l.empresa, localizacao: l.cidade, setor: l.setor || 'Outro',
+          nome: l.empresa, distrito: l.distrito, localizacao: l.localidade, setor: l.setor || 'Outro',
           plano: '', data_inicio: '', email: '', telefone: '', notas: '', cor: 'blue'
         });
-        dados.empresas.push({ empresa_id, nome: l.empresa, localizacao: l.cidade, setor: l.setor || 'Outro', cor: 'blue' });
+        dados.empresas.push({ empresa_id, nome: l.empresa, distrito: l.distrito, localizacao: l.localidade, setor: l.setor || 'Outro', cor: 'blue' });
       }
     }
     const pessoa_id = await SheetsAPI.createPessoa(token, {
@@ -879,9 +883,10 @@ function campoHTML(label, valor) {
 
 function fichaEmpresaHTML(empresa) {
   const campos = [
-    campoHTML('Localização', esc(empresa.localizacao) || '—'),
+    campoHTML('Distrito', esc(empresa.distrito) || '—'),
     campoHTML('Setor', esc(empresa.setor) || '—')
   ];
+  if (empresa.localizacao) campos.push(campoHTML('Localidade', esc(empresa.localizacao)));
   if (empresa.setor === 'Restaurante') campos.push(campoHTML('Plano', esc(empresa.plano) || '—'));
   if (empresa.data_inicio) campos.push(campoHTML('Data de Início', esc(empresa.data_inicio)));
   if (empresa.email) campos.push(campoHTML('Email', esc(empresa.email)));
@@ -1144,7 +1149,13 @@ function editarEmpresaForm(empresaId) {
       <h2>Editar empresa</h2>
       <div class="form-grid">
         <div class="form-group"><label>Nome *</label><input type="text" id="ed-nome" value="${esc(empresa.nome)}" /></div>
-        <div class="form-group"><label>Localização *</label><input type="text" id="ed-localizacao" value="${esc(empresa.localizacao)}" /></div>
+        <div class="form-group"><label>Distrito *</label>
+          <select id="ed-distrito">
+            <option value="">— Selecionar —</option>
+            ${distritoOptionsHTML(empresa.distrito)}
+          </select>
+        </div>
+        <div class="form-group"><label>Localidade</label><input type="text" id="ed-localizacao" value="${esc(empresa.localizacao)}" /></div>
         <div class="form-group"><label>Setor *</label>
           <select id="ed-setor">
             <option value="">— Selecionar —</option>
@@ -1200,10 +1211,11 @@ function editarEmpresaForm(empresaId) {
 
 async function guardarEmpresa(empresaId) {
   const nome = val('ed-nome').trim();
+  const distrito = val('ed-distrito');
   const localizacao = val('ed-localizacao').trim();
   const setor = val('ed-setor');
-  if (!nome || !localizacao || !setor) {
-    document.getElementById('ed-aviso').textContent = 'Nome, localização e setor são obrigatórios.';
+  if (!nome || !distrito || !setor) {
+    document.getElementById('ed-aviso').textContent = 'Nome, distrito e setor são obrigatórios.';
     return;
   }
   const plano = setor === 'Restaurante' ? val('ed-plano') : '';
@@ -1211,6 +1223,7 @@ async function guardarEmpresa(empresaId) {
   const cor = (document.querySelector('#ed-cor-palette .cor-swatch.selecionado') || { dataset: {} }).dataset.cor || 'blue';
   const atualizada = {
     nome,
+    distrito,
     localizacao,
     setor,
     plano,
