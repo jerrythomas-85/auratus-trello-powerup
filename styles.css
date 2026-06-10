@@ -763,3 +763,7 @@ h3 {
 .crm-tabela tbody tr:hover td {
   background: #f4f5f7;
 }
+
+.crm-linha {
+  cursor: pointer;
+}

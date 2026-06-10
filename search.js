@@ -463,7 +463,7 @@ function renderListaTabela() {
       </thead>
       <tbody>
         ${lista.map(c => `
-          <tr>
+          <tr class="crm-linha" data-pessoa-id="${esc(c.pessoa.pessoa_id)}">
             <td>${esc(c.nome)}</td>
             <td>${esc(c.cargo) || '—'}</td>
             <td>${esc(c.empresaNome) || '—'}</td>
@@ -477,6 +477,21 @@ function renderListaTabela() {
       </tbody>
     </table>
   `;
+
+  tabela.querySelectorAll('.crm-linha').forEach(tr => {
+    tr.addEventListener('click', () => abrirContactoNaAbaPessoas(tr.dataset.pessoaId));
+  });
+}
+
+function abrirContactoNaAbaPessoas(pessoaId) {
+  const pessoa = dados.pessoas.find(p => p.pessoa_id === pessoaId);
+  const tabPessoas = document.querySelector('.tab[data-tab="pessoas"]');
+  if (tabPessoas) tabPessoas.click();
+  const input = document.getElementById('search-pessoa-board');
+  if (input && pessoa) input.value = `${pessoa.nome} ${pessoa.apelido || ''}`.trim();
+  const resultados = document.getElementById('pessoa-resultados');
+  if (resultados) resultados.innerHTML = '';
+  mostrarDetalhePessoa(pessoaId);
 }
 
 function csvCampo(v) {
