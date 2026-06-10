@@ -769,6 +769,11 @@ h3 {
 }
 
 /* ---- ABA IMPORTAR ---- */
+.imp-bulk-acoes {
+  display: flex;
+  gap: 8px;
+}
+
 .tabela-scroll {
   overflow-x: auto;
 }

@@ -665,7 +665,10 @@ function renderImportStaging() {
   cont.innerHTML = `
     <div class="lista-acoes" style="margin-top:16px;">
       <span class="hint">${nPend} pendente(s) · ${nOk} importado(s)</span>
-      <button id="imp-aprovar-sel" class="btn-primary" style="flex:0 0 auto;">Aprovar selecionados</button>
+      <span class="imp-bulk-acoes">
+        <button id="imp-recusar-sel" class="btn-secondary" style="flex:0 0 auto;">Recusar selecionados</button>
+        <button id="imp-aprovar-sel" class="btn-primary" style="flex:0 0 auto;">Aprovar selecionados</button>
+      </span>
     </div>
     <div class="tabela-scroll">
       <table class="crm-tabela imp-tabela">
@@ -690,6 +693,7 @@ function renderImportStaging() {
     });
   });
   document.getElementById('imp-aprovar-sel').addEventListener('click', aprovarSelecionados);
+  document.getElementById('imp-recusar-sel').addEventListener('click', recusarSelecionados);
   importLinhas.forEach((l, i) => {
     if (l.estado !== 'pendente') return;
     const btnA = document.getElementById('imp-aprovar-' + i);
@@ -800,6 +804,16 @@ function recusarLinha(i) {
   sincronizarPendentes();
   importLinhas[i].estado = 'recusado';
   renderImportStaging();
+}
+
+function recusarSelecionados() {
+  sincronizarPendentes();
+  let algum = false;
+  importLinhas.forEach((l, i) => {
+    const cb = document.getElementById('imp-check-' + i);
+    if (l.estado === 'pendente' && cb && cb.checked) { l.estado = 'recusado'; algum = true; }
+  });
+  if (algum) renderImportStaging();
 }
 
 function baixarCSV(csv, nome) {
