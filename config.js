@@ -3,9 +3,7 @@ const AURATUS_CONFIG = {
   CLIENT_ID: '158811393234-gv7tfjs8j122h1q3dg919q6dikupe2gk.apps.googleusercontent.com',
   REDIRECT_URI: 'https://auratus-trello-powerup.pages.dev/auth-callback.html',
   SCOPES: [
-    'https://www.googleapis.com/auth/spreadsheets',
-    'https://www.googleapis.com/auth/gmail.send',
-    'https://www.googleapis.com/auth/gmail.readonly'
+    'https://www.googleapis.com/auth/spreadsheets'
   ].join(' '),
 
   // Google Sheets
