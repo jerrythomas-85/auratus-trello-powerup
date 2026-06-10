@@ -5,6 +5,7 @@
 let t;
 let token = null;
 let dados = { empresas: [], pessoas: [], pessoaEmpresas: [], cardAssoc: [], boardId: null };
+let importLinhas = [];
 
 document.addEventListener('DOMContentLoaded', async () => {
   t = TrelloPowerUp.iframe({
@@ -17,6 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderEmpresasTab();
   renderPessoasTab();
   renderListaTab();
+  renderImportarTab();
 });
 
 function setupTabs() {
@@ -512,6 +514,286 @@ function exportarListaCSV() {
   const a = document.createElement('a');
   a.href = url;
   a.download = `crm-export-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ---- SEPARADOR IMPORTAR ----
+
+function renderImportarTab() {
+  const panel = document.getElementById('tab-importar');
+  panel.innerHTML = `
+    <div class="section">
+      <h2>Importar contactos</h2>
+      <p class="hint">Carrega um CSV ou cola os dados. Colunas: Nome, Apelido, Cargo, Função, Email, Telemóvel, Empresa, Cidade, Setor. A 1ª linha é o cabeçalho. Só "Nome" é obrigatório.</p>
+      <div class="form-group">
+        <label>Ficheiro CSV</label>
+        <input type="file" id="imp-ficheiro" accept=".csv,text/csv" />
+      </div>
+      <div class="form-group">
+        <label>...ou colar aqui</label>
+        <textarea id="imp-texto" placeholder="Nome,Apelido,Cargo,Email,Empresa,Cidade,Setor&#10;João,Silva,Gerência,joao@x.pt,Restaurante X,Lisboa,Restaurante"></textarea>
+      </div>
+      <div class="form-actions">
+        <button id="imp-template" class="btn-secondary">⬇️ Modelo CSV</button>
+        <button id="imp-processar" class="btn-primary">Processar</button>
+      </div>
+      <span class="field-error-msg" id="imp-aviso"></span>
+      <div id="imp-staging"></div>
+    </div>
+  `;
+
+  document.getElementById('imp-ficheiro').addEventListener('change', function() {
+    const f = this.files && this.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      document.getElementById('imp-texto').value = reader.result;
+      processarImport(reader.result);
+    };
+    reader.readAsText(f);
+  });
+  document.getElementById('imp-processar').addEventListener('click', () => {
+    processarImport(document.getElementById('imp-texto').value);
+  });
+  document.getElementById('imp-template').addEventListener('click', () => {
+    const csv = 'Nome,Apelido,Cargo,Função,Email,Telemóvel,Empresa,Cidade,Setor\r\nJoão,Silva,Gerência,,joao@exemplo.pt,912345678,Restaurante X,Lisboa,Restaurante';
+    baixarCSV(csv, 'modelo-contactos.csv');
+  });
+}
+
+function normalizarCol(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+}
+
+// Parser de CSV simples: deteta delimitador (, ou ;) e respeita aspas.
+function parseCSV(texto) {
+  const primeira = (texto || '').split(/\r?\n/)[0] || '';
+  const delim = primeira.split(';').length > primeira.split(',').length ? ';' : ',';
+  const linhas = [];
+  let campo = '', linha = [], emAspas = false;
+  const fimCampo = () => { linha.push(campo); campo = ''; };
+  const fimLinha = () => { fimCampo(); linhas.push(linha); linha = []; };
+  for (let i = 0; i < texto.length; i++) {
+    const ch = texto[i];
+    if (emAspas) {
+      if (ch === '"') {
+        if (texto[i + 1] === '"') { campo += '"'; i++; }
+        else emAspas = false;
+      } else campo += ch;
+    } else if (ch === '"') emAspas = true;
+    else if (ch === delim) fimCampo();
+    else if (ch === '\n') fimLinha();
+    else if (ch !== '\r') campo += ch;
+  }
+  if (campo.length || linha.length) fimLinha();
+  return linhas.filter(l => l.some(c => c.trim() !== ''));
+}
+
+function processarImport(texto) {
+  const aviso = document.getElementById('imp-aviso');
+  aviso.textContent = '';
+  const linhas = parseCSV(texto || '');
+  if (linhas.length < 2) {
+    aviso.textContent = 'CSV vazio ou sem dados (precisa de cabeçalho + pelo menos uma linha).';
+    return;
+  }
+
+  const mapa = {
+    nome: 'nome', apelido: 'apelido', cargo: 'cargo', funcao: 'funcao',
+    email: 'email', 'e-mail': 'email', telemovel: 'telemovel', telefone: 'telemovel',
+    empresa: 'empresa', cidade: 'cidade', localizacao: 'cidade', setor: 'setor', sector: 'setor'
+  };
+  const cab = linhas[0].map(normalizarCol);
+  const idx = {};
+  cab.forEach((h, c) => { if (mapa[h] && idx[mapa[h]] === undefined) idx[mapa[h]] = c; });
+  if (idx.nome === undefined) {
+    aviso.textContent = 'Não encontrei a coluna "Nome" no cabeçalho.';
+    return;
+  }
+
+  const campos = ['nome', 'apelido', 'cargo', 'funcao', 'email', 'telemovel', 'empresa', 'cidade', 'setor'];
+  importLinhas = linhas.slice(1).map(cols => {
+    const o = { estado: 'pendente' };
+    campos.forEach(f => { o[f] = idx[f] !== undefined ? (cols[idx[f]] || '').trim() : ''; });
+    return o;
+  }).filter(o => o.nome);
+
+  if (!importLinhas.length) {
+    aviso.textContent = 'Nenhuma linha com nome para importar.';
+    return;
+  }
+  renderImportStaging();
+}
+
+function selectImportHTML(id, opts, val) {
+  const todas = (val && !opts.includes(val)) ? [val, ...opts] : opts;
+  return `<select id="${id}"><option value="">—</option>${
+    todas.map(o => `<option value="${esc(o)}" ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')
+  }</select>`;
+}
+
+function renderImportStaging() {
+  const cont = document.getElementById('imp-staging');
+  if (!importLinhas.length) { cont.innerHTML = ''; return; }
+
+  importLinhas.forEach(l => {
+    if (l.estado === 'pendente') {
+      l.duplicado = !!(l.email && dados.pessoas.some(p => (p.email || '').toLowerCase() === l.email.toLowerCase()));
+    }
+  });
+
+  const nPend = importLinhas.filter(l => l.estado === 'pendente').length;
+  const nOk = importLinhas.filter(l => l.estado === 'importado').length;
+
+  cont.innerHTML = `
+    <div class="lista-acoes" style="margin-top:16px;">
+      <span class="hint">${nPend} pendente(s) · ${nOk} importado(s)</span>
+      <button id="imp-aprovar-sel" class="btn-primary" style="flex:0 0 auto;">Aprovar selecionados</button>
+    </div>
+    <div class="tabela-scroll">
+      <table class="crm-tabela imp-tabela">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="imp-check-todos" /></th>
+            <th>Nome</th><th>Apelido</th><th>Cargo</th><th>Função</th><th>Email</th><th>Telemóvel</th><th>Empresa</th><th>Cidade</th><th>Setor</th><th>Estado</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${importLinhas.map((l, i) => linhaImportHTML(l, i)).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  document.getElementById('imp-check-todos').addEventListener('change', function() {
+    importLinhas.forEach((l, i) => {
+      if (l.estado !== 'pendente') return;
+      const cb = document.getElementById('imp-check-' + i);
+      if (cb) cb.checked = this.checked;
+    });
+  });
+  document.getElementById('imp-aprovar-sel').addEventListener('click', aprovarSelecionados);
+  importLinhas.forEach((l, i) => {
+    if (l.estado !== 'pendente') return;
+    const btnA = document.getElementById('imp-aprovar-' + i);
+    const btnR = document.getElementById('imp-recusar-' + i);
+    if (btnA) btnA.addEventListener('click', () => aprovarLinha(i));
+    if (btnR) btnR.addEventListener('click', () => recusarLinha(i));
+  });
+}
+
+function linhaImportHTML(l, i) {
+  if (l.estado === 'recusado') return '';
+  if (l.estado === 'importado') {
+    return `<tr class="imp-importado">
+      <td>✓</td>
+      <td>${esc(l.nome)}</td><td>${esc(l.apelido)}</td><td>${esc(l.cargo)}</td><td>${esc(l.funcao)}</td>
+      <td>${esc(l.email)}</td><td>${esc(l.telemovel)}</td><td>${esc(l.empresa)}</td><td>${esc(l.cidade)}</td><td>${esc(l.setor)}</td>
+      <td><span class="imp-estado-ok">Importado</span></td><td></td>
+    </tr>`;
+  }
+  const estado = l.erro
+    ? `<span class="imp-estado-erro">${esc(l.erro)}</span>`
+    : (l.duplicado ? '<span class="imp-estado-dup">Já existe</span>' : '<span class="hint">Pendente</span>');
+  return `<tr class="${l.duplicado ? 'imp-dup' : ''}">
+    <td><input type="checkbox" id="imp-check-${i}" ${l.duplicado ? '' : 'checked'} /></td>
+    <td><input type="text" id="imp-${i}-nome" value="${esc(l.nome)}" /></td>
+    <td><input type="text" id="imp-${i}-apelido" value="${esc(l.apelido)}" /></td>
+    <td>${selectImportHTML('imp-' + i + '-cargo', ['Gerência', 'Colaborador'], l.cargo)}</td>
+    <td><input type="text" id="imp-${i}-funcao" value="${esc(l.funcao)}" /></td>
+    <td><input type="text" id="imp-${i}-email" value="${esc(l.email)}" /></td>
+    <td><input type="text" id="imp-${i}-telemovel" value="${esc(l.telemovel)}" /></td>
+    <td><input type="text" id="imp-${i}-empresa" value="${esc(l.empresa)}" /></td>
+    <td><input type="text" id="imp-${i}-cidade" value="${esc(l.cidade)}" /></td>
+    <td>${selectImportHTML('imp-' + i + '-setor', ['Restaurante', 'Outro'], l.setor)}</td>
+    <td>${estado}</td>
+    <td class="imp-acoes">
+      <button class="btn-icon" id="imp-aprovar-${i}" title="Aprovar">✓</button>
+      <button class="btn-icon btn-danger" id="imp-recusar-${i}" title="Recusar">✕</button>
+    </td>
+  </tr>`;
+}
+
+function sincronizarPendentes() {
+  importLinhas.forEach((l, i) => {
+    if (l.estado !== 'pendente') return;
+    ['nome', 'apelido', 'cargo', 'funcao', 'email', 'telemovel', 'empresa', 'cidade', 'setor'].forEach(c => {
+      const el = document.getElementById(`imp-${i}-${c}`);
+      if (el) l[c] = el.value.trim();
+    });
+  });
+}
+
+async function importarUmaLinha(i) {
+  const l = importLinhas[i];
+  if (!l || l.estado !== 'pendente') return;
+  if (!l.nome) { l.erro = 'Falta o nome'; return; }
+  l.erro = null;
+  try {
+    let empresa_id = '';
+    if (l.empresa) {
+      const existente = dados.empresas.find(e => (e.nome || '').toLowerCase() === l.empresa.toLowerCase());
+      if (existente) {
+        empresa_id = existente.empresa_id;
+      } else {
+        empresa_id = await SheetsAPI.createEmpresa(token, {
+          nome: l.empresa, localizacao: l.cidade, setor: l.setor || 'Outro',
+          plano: '', data_inicio: '', email: '', telefone: '', notas: '', cor: 'blue'
+        });
+        dados.empresas.push({ empresa_id, nome: l.empresa, localizacao: l.cidade, setor: l.setor || 'Outro', cor: 'blue' });
+      }
+    }
+    const pessoa_id = await SheetsAPI.createPessoa(token, {
+      empresa_id, nome: l.nome, apelido: l.apelido, cargo: l.cargo,
+      funcao: l.funcao, email: l.email, telemovel: l.telemovel
+    });
+    dados.pessoas.push({ pessoa_id, empresa_id, nome: l.nome, apelido: l.apelido, cargo: l.cargo, funcao: l.funcao, email: l.email, telemovel: l.telemovel });
+    if (empresa_id) {
+      try { await SheetsAPI.addPessoaEmpresa(token, pessoa_id, empresa_id); dados.pessoaEmpresas.push({ pessoa_id, empresa_id }); } catch (e) {}
+    }
+    l.estado = 'importado';
+  } catch (err) {
+    l.erro = err.message;
+  }
+}
+
+async function aprovarLinha(i) {
+  sincronizarPendentes();
+  await importarUmaLinha(i);
+  renderImportStaging();
+  renderListaTab();
+}
+
+async function aprovarSelecionados() {
+  sincronizarPendentes();
+  const idxs = [];
+  importLinhas.forEach((l, i) => {
+    const cb = document.getElementById('imp-check-' + i);
+    if (l.estado === 'pendente' && cb && cb.checked) idxs.push(i);
+  });
+  if (!idxs.length) return;
+  const btn = document.getElementById('imp-aprovar-sel');
+  if (btn) { btn.disabled = true; btn.textContent = 'A importar...'; }
+  for (const i of idxs) await importarUmaLinha(i);
+  renderImportStaging();
+  renderListaTab();
+}
+
+function recusarLinha(i) {
+  sincronizarPendentes();
+  importLinhas[i].estado = 'recusado';
+  renderImportStaging();
+}
+
+function baixarCSV(csv, nome) {
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nome;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

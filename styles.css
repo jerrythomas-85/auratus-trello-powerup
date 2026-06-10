@@ -767,3 +767,60 @@ h3 {
 .crm-linha {
   cursor: pointer;
 }
+
+/* ---- ABA IMPORTAR ---- */
+.tabela-scroll {
+  overflow-x: auto;
+}
+
+.imp-tabela td {
+  padding: 4px;
+  vertical-align: middle;
+}
+
+.imp-tabela input,
+.imp-tabela select {
+  width: 100%;
+  min-width: 90px;
+  border: 1px solid #dfe1e6;
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  color: #172b4d;
+  background: #fff;
+}
+
+.imp-tabela .imp-acoes {
+  white-space: nowrap;
+}
+
+.imp-tabela .imp-acoes .btn-icon {
+  padding: 2px 6px;
+}
+
+.imp-dup td {
+  background: #fffae6;
+}
+
+.imp-importado td {
+  background: #e3fcef;
+}
+
+.imp-estado-ok {
+  color: #006644;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.imp-estado-dup {
+  color: #974f00;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.imp-estado-erro {
+  color: #bf2600;
+  font-weight: 600;
+  font-size: 11px;
+}
