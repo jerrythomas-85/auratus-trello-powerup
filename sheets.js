@@ -365,7 +365,7 @@ const SheetsAPI = {
 
   async _appendRow(token, sheet, row) {
     const range = `${sheet}!A:A`;
-    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
+    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}:append?valueInputOption=RAW&insertDataOption=OVERWRITE`;
     await fetch(url, {
       method: 'POST',
       headers: this.headers(token),
