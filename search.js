@@ -568,6 +568,18 @@ function normalizarCol(s) {
   return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 }
 
+// Telemóvel: ignora letras/pontuação e fica com os últimos 9 dígitos.
+function limparTelemovel(s) {
+  const digitos = String(s || '').replace(/\D/g, '');
+  return digitos.length > 9 ? digitos.slice(-9) : digitos;
+}
+
+// Email: extrai o token com @ (ignora prefixos como "Work:").
+function limparEmail(s) {
+  const m = String(s || '').match(/[^\s,;:<>()"]+@[^\s,;:<>()"]+/);
+  return m ? m[0].replace(/[.,;:]+$/, '') : '';
+}
+
 // Parser de CSV simples: deteta delimitador (, ou ;) e respeita aspas.
 function parseCSV(texto) {
   const primeira = (texto || '').split(/\r?\n/)[0] || '';
@@ -618,6 +630,8 @@ function processarImport(texto) {
   importLinhas = linhas.slice(1).map(cols => {
     const o = { estado: 'pendente' };
     campos.forEach(f => { o[f] = idx[f] !== undefined ? (cols[idx[f]] || '').trim() : ''; });
+    o.telemovel = limparTelemovel(o.telemovel);
+    o.email = limparEmail(o.email);
     return o;
   }).filter(o => o.nome);
 
