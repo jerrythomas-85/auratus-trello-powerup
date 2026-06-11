@@ -818,6 +818,15 @@ h3 {
   cursor: pointer;
 }
 
+/* Avença a expirar nos próximos 30 dias */
+.av-linha-proxima td {
+  background: #fffae6;
+}
+
+.av-fim-proximo {
+  color: #974f00;
+}
+
 /* ---- ABA IMPORTAR ---- */
 .imp-bulk-acoes {
   display: flex;

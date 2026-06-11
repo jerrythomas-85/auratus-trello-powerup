@@ -6,6 +6,7 @@ let t;
 let token = null;
 let dados = { empresas: [], pessoas: [], pessoaEmpresas: [], cardAssoc: [], boardId: null };
 let importLinhas = [];
+let avencas = null; // lazy: null = ainda não carregadas
 
 document.addEventListener('DOMContentLoaded', async () => {
   t = TrelloPowerUp.iframe({
@@ -14,6 +15,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   Auth.init(t);
   setupTabs();
+  document.querySelector('.tab[data-tab="ard"]').addEventListener('click', renderArdTab);
   document.getElementById('tab-empresas').innerHTML = `<p class="empty">A carregar...</p>`;
   await carregarDados();
   renderEmpresasTab();
@@ -610,6 +612,107 @@ function exportarListaCSV() {
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ---- SEPARADOR ARD (avenças) ----
+
+async function renderArdTab() {
+  if (avencas !== null) return; // já carregado (lazy)
+  const panel = document.getElementById('tab-ard');
+  panel.innerHTML = `<p class="empty">A carregar avenças...</p>`;
+  try {
+    avencas = await SheetsAPI.getAllAvencas(token);
+  } catch (err) {
+    panel.innerHTML = `<p class="empty">Erro ao carregar avenças: ${esc(err.message)}</p>`;
+    return;
+  }
+  panel.innerHTML = `
+    <div class="filtros">
+      <div class="filtro-grupo">
+        <label>Estado</label>
+        <select id="f-av-estado">
+          <option value="">Todos</option>
+          <option value="ativa">Ativa</option>
+          <option value="inativa">Inativa</option>
+        </select>
+      </div>
+      <div class="filtro-grupo">
+        <label>Tipo</label>
+        <select id="f-av-tipo">
+          <option value="">Todos</option>
+          <option value="ARD">ARD</option>
+          <option value="ARD Pro">ARD Pro</option>
+          <option value="ARD Premium">ARD Premium</option>
+          <option value="ARD (Antigo)">ARD (Antigo)</option>
+        </select>
+      </div>
+    </div>
+    <div class="lista-acoes">
+      <span id="av-contagem" class="hint"></span>
+    </div>
+    <div id="av-tabela"></div>
+  `;
+  document.getElementById('f-av-estado').addEventListener('change', renderArdTabela);
+  document.getElementById('f-av-tipo').addEventListener('change', renderArdTabela);
+  renderArdTabela();
+}
+
+// Avença ativa cujo fim cai nos próximos 30 dias (data assumida em YYYY-MM-DD).
+function avExpiraEm30Dias(a) {
+  if (a.estado !== 'ativa' || !a.data_fim) return false;
+  const fim = new Date(a.data_fim + 'T23:59:59');
+  if (isNaN(fim.getTime())) return false;
+  const dias = (fim.getTime() - Date.now()) / 86400000;
+  return dias >= 0 && dias <= 30;
+}
+
+function renderArdTabela() {
+  const estado = val('f-av-estado');
+  const tipo = val('f-av-tipo');
+  const lista = (avencas || []).filter(a => {
+    if (estado && a.estado !== estado) return false;
+    if (tipo && a.tipo !== tipo) return false;
+    return true;
+  });
+  document.getElementById('av-contagem').textContent = `${lista.length} avença(s)`;
+  const tabela = document.getElementById('av-tabela');
+  if (!lista.length) {
+    tabela.innerHTML = `<p class="empty">Nenhuma avença com estes filtros.</p>`;
+    return;
+  }
+  tabela.innerHTML = `
+    <div class="tabela-scroll">
+      <table class="crm-tabela">
+        <thead><tr>
+          <th>Empresa</th><th>Tipo</th><th>Valor</th><th>Period.</th><th>Início</th><th>Fim</th><th>Renova</th><th>Estado</th>
+        </tr></thead>
+        <tbody>
+          ${lista.map(avLinhaHTML).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function avLinhaHTML(a) {
+  const empresa = dados.empresas.find(e => e.empresa_id === a.empresa_id);
+  const empresaNome = empresa ? empresa.nome : (a.empresa_id || '—');
+  const proximo = avExpiraEm30Dias(a);
+  const fimCell = a.data_fim
+    ? `<strong class="${proximo ? 'av-fim-proximo' : ''}">${esc(a.data_fim)}${proximo ? ' ⚠' : ''}</strong>`
+    : '—';
+  return `
+    <tr class="${proximo ? 'av-linha-proxima' : ''}">
+      <td>${esc(empresaNome)}</td>
+      <td>${esc(a.tipo) || '—'}</td>
+      <td>${a.valor ? esc(a.valor) + ' €' : '—'}</td>
+      <td>${esc(a.periodicidade) || '—'}</td>
+      <td>${esc(a.data_inicio) || '—'}</td>
+      <td>${fimCell}</td>
+      <td>${esc(a.renova) || '—'}</td>
+      <td><span class="card-estado ${a.estado === 'ativa' ? 'ativo' : 'arquivado'}">${esc(a.estado) || '—'}</span></td>
+    </tr>
+  `;
 }
 
 // ---- SEPARADOR IMPORTAR ----
