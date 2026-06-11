@@ -644,6 +644,8 @@ async function renderArdTab() {
           <option value="ARD Pro">ARD Pro</option>
           <option value="ARD Premium">ARD Premium</option>
           <option value="ARD (Antigo)">ARD (Antigo)</option>
+          <option value="ARD Pro (Antigo)">ARD Pro (Antigo)</option>
+          <option value="Fora">Fora</option>
         </select>
       </div>
     </div>
@@ -657,9 +659,12 @@ async function renderArdTab() {
   renderArdTabela();
 }
 
-// Avença ativa cujo fim cai nos próximos 30 dias (data assumida em YYYY-MM-DD).
+// Só os tipos que renovam têm DATA_FIM e entram no cálculo do destaque.
+const AV_TIPOS_RENOVAM = ['ARD', 'ARD Pro', 'ARD Premium'];
+
+// Avença ativa (de tipo que renova) cujo fim cai nos próximos 30 dias.
 function avExpiraEm30Dias(a) {
-  if (a.estado !== 'ativa' || !a.data_fim) return false;
+  if (a.estado !== 'ativa' || !AV_TIPOS_RENOVAM.includes(a.tipo) || !a.data_fim) return false;
   const fim = new Date(a.data_fim + 'T23:59:59');
   if (isNaN(fim.getTime())) return false;
   const dias = (fim.getTime() - Date.now()) / 86400000;
@@ -684,7 +689,7 @@ function renderArdTabela() {
     <div class="tabela-scroll">
       <table class="crm-tabela">
         <thead><tr>
-          <th>Empresa</th><th>Tipo</th><th>Valor</th><th>Period.</th><th>Início</th><th>Fim</th><th>Renova</th><th>Estado</th>
+          <th>Empresa</th><th>Tipo</th><th>Valor</th><th>Início</th><th>Fim</th><th>Renova</th><th>Estado</th>
         </tr></thead>
         <tbody>
           ${lista.map(avLinhaHTML).join('')}
@@ -706,7 +711,6 @@ function avLinhaHTML(a) {
       <td>${esc(empresaNome)}</td>
       <td>${esc(a.tipo) || '—'}</td>
       <td>${a.valor ? esc(a.valor) + ' €' : '—'}</td>
-      <td>${esc(a.periodicidade) || '—'}</td>
       <td>${esc(a.data_inicio) || '—'}</td>
       <td>${fimCell}</td>
       <td>${esc(a.renova) || '—'}</td>
