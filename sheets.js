@@ -239,6 +239,81 @@ const SheetsAPI = {
     await this._appendRow(token, AURATUS_CONFIG.SHEETS.PESSOAS_EMPRESAS, [pessoa_id, empresa_id]);
   },
 
+  // ---- AVENCAS (ARD) ----
+  // Colunas A:J — AVENCA_ID, EMPRESA_ID, TIPO, VALOR, PERIODICIDADE,
+  // DATA_INICIO, DATA_FIM, RENOVA, ESTADO, NOTAS
+
+  async getAllAvencas(token) {
+    const range = `${AURATUS_CONFIG.SHEETS.AVENCAS}!A2:J`;
+    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
+    const res = await fetch(url, { headers: this.headers(token) });
+    const data = await res.json();
+    if (!data.values) return [];
+    return data.values
+      .filter(r => r[0])
+      .map(r => ({
+        avenca_id: r[0] || '',
+        empresa_id: r[1] || '',
+        tipo: r[2] || '',
+        valor: r[3] || '',
+        periodicidade: r[4] || '',
+        data_inicio: r[5] || '',
+        data_fim: r[6] || '',
+        renova: r[7] || '',
+        estado: r[8] || '',
+        notas: r[9] || ''
+      }));
+  },
+
+  async addAvenca(token, avenca) {
+    const id = 'AV_' + Date.now();
+    const row = [
+      id,
+      avenca.empresa_id || '',
+      avenca.tipo || '',
+      avenca.valor || '',
+      avenca.periodicidade || '',
+      avenca.data_inicio || '',
+      avenca.data_fim || '',
+      avenca.renova || 'SIM',
+      avenca.estado || 'ativa',
+      avenca.notas || ''
+    ];
+    await this._appendRow(token, AURATUS_CONFIG.SHEETS.AVENCAS, row);
+    return id;
+  },
+
+  async updateAvenca(token, avenca_id, avenca) {
+    const range = `${AURATUS_CONFIG.SHEETS.AVENCAS}!A2:J`;
+    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
+    const res = await fetch(url, { headers: this.headers(token) });
+    const data = await res.json();
+    if (!data.values) return;
+    const rowIndex = data.values.findIndex(r => r[0] === avenca_id);
+    if (rowIndex === -1) return;
+    const updateRange = `${AURATUS_CONFIG.SHEETS.AVENCAS}!A${rowIndex + 2}:J${rowIndex + 2}`;
+    const updateURL = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${updateRange}?valueInputOption=RAW`;
+    await fetch(updateURL, {
+      method: 'PUT',
+      headers: this.headers(token),
+      body: JSON.stringify({
+        range: updateRange,
+        values: [[
+          avenca_id,
+          avenca.empresa_id || '',
+          avenca.tipo || '',
+          avenca.valor || '',
+          avenca.periodicidade || '',
+          avenca.data_inicio || '',
+          avenca.data_fim || '',
+          avenca.renova || '',
+          avenca.estado || '',
+          avenca.notas || ''
+        ]]
+      })
+    });
+  },
+
   // ---- DESASSOCIAR ----
 
   async deleteCardAssociacao(token, card_id) {
