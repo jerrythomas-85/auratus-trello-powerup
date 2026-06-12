@@ -737,8 +737,18 @@ function criarAvencaForm() {
       <div class="form-group">
         <label>Empresa *</label>
         <div id="av-empresa-escolhida"></div>
-        <input type="text" id="av-empresa-search" placeholder="Pesquisar empresa..." autocomplete="off" />
-        <div id="av-empresa-res" class="resultados"></div>
+        <div id="av-empresa-pesquisa">
+          <input type="text" id="av-empresa-search" placeholder="Pesquisar empresa..." autocomplete="off" />
+          <div id="av-empresa-res" class="resultados"></div>
+          <button type="button" id="av-criar-empresa" class="btn-secondary" style="margin-top:6px;">+ Criar empresa</button>
+          <div id="av-empresa-novaform"></div>
+        </div>
+      </div>
+      <div class="form-group" id="av-pessoa-sec" style="display:none;">
+        <label>Contacto da empresa (opcional)</label>
+        <div id="av-pessoa-feitos"></div>
+        <button type="button" id="av-criar-pessoa" class="btn-secondary" style="margin-top:6px;">+ Criar pessoa para esta empresa</button>
+        <div id="av-pessoa-novaform"></div>
       </div>
       <div class="form-grid">
         <div class="form-group"><label>Tipo *</label>
@@ -761,6 +771,7 @@ function criarAvencaForm() {
     </div>
   `;
   wireAvEmpresaPicker();
+  document.getElementById('av-criar-pessoa').addEventListener('click', avAbrirCriarPessoa);
   document.getElementById('av-tipo').addEventListener('change', avAtualizaPorTipo);
   document.getElementById('av-cancelar').addEventListener('click', () => { det.innerHTML = ''; });
   document.getElementById('av-guardar').addEventListener('click', guardarNovaAvenca);
@@ -785,28 +796,135 @@ function wireAvEmpresaPicker() {
     const filtradas = dados.empresas.filter(e => (e.nome || '').toLowerCase().includes(q)).slice(0, 8);
     res.innerHTML = filtradas.length
       ? filtradas.map(e => `<div class="resultado-item" data-id="${esc(e.empresa_id)}"><strong>${esc(e.nome)}</strong>${e.distrito ? `<span>${esc(e.distrito)}</span>` : ''}</div>`).join('')
-      : `<p class="empty">Nenhuma empresa encontrada.</p>`;
+      : `<p class="empty">Nenhuma empresa encontrada. Cria abaixo.</p>`;
     res.querySelectorAll('.resultado-item').forEach(el => {
-      el.addEventListener('click', () => {
-        const emp = dados.empresas.find(e => e.empresa_id === el.dataset.id);
-        avEmpresaSel = emp ? { id: emp.empresa_id, nome: emp.nome } : null;
-        input.value = '';
-        res.innerHTML = '';
-        renderAvEmpresaEscolhida();
-      });
+      el.addEventListener('click', () => avEscolherEmpresa(el.dataset.id));
     });
   });
+  document.getElementById('av-criar-empresa').addEventListener('click', avAbrirCriarEmpresa);
+  renderAvEmpresaEscolhida();
+}
+
+function avEscolherEmpresa(id) {
+  const emp = dados.empresas.find(e => e.empresa_id === id);
+  avEmpresaSel = emp ? { id: emp.empresa_id, nome: emp.nome } : null;
+  const s = document.getElementById('av-empresa-search'); if (s) s.value = '';
+  const r = document.getElementById('av-empresa-res'); if (r) r.innerHTML = '';
   renderAvEmpresaEscolhida();
 }
 
 function renderAvEmpresaEscolhida() {
   const cont = document.getElementById('av-empresa-escolhida');
   if (!cont) return;
-  cont.innerHTML = avEmpresaSel
-    ? `<div class="resultado-item selecionado assoc-chip"><strong>${esc(avEmpresaSel.nome)}</strong><span class="assoc-remover" title="Remover">✕</span></div>`
-    : '';
-  const x = cont.querySelector('.assoc-remover');
-  if (x) x.addEventListener('click', () => { avEmpresaSel = null; renderAvEmpresaEscolhida(); });
+  const pesquisa = document.getElementById('av-empresa-pesquisa');
+  const pessoaSec = document.getElementById('av-pessoa-sec');
+  if (avEmpresaSel) {
+    cont.innerHTML = `<div class="resultado-item selecionado assoc-chip"><strong>${esc(avEmpresaSel.nome)}</strong><span class="assoc-remover" title="Trocar empresa">✕</span></div>`;
+    cont.querySelector('.assoc-remover').addEventListener('click', () => { avEmpresaSel = null; renderAvEmpresaEscolhida(); });
+    if (pesquisa) pesquisa.style.display = 'none';
+    if (pessoaSec) pessoaSec.style.display = '';
+  } else {
+    cont.innerHTML = '';
+    if (pesquisa) pesquisa.style.display = '';
+    if (pessoaSec) pessoaSec.style.display = 'none';
+    const feitos = document.getElementById('av-pessoa-feitos'); if (feitos) feitos.innerHTML = '';
+    const novaform = document.getElementById('av-empresa-novaform'); if (novaform) novaform.innerHTML = '';
+    const btnCriar = document.getElementById('av-criar-empresa'); if (btnCriar) btnCriar.style.display = '';
+  }
+}
+
+// Criação inline de empresa (reutiliza o formulário de empresa existente).
+function avAbrirCriarEmpresa() {
+  const cont = document.getElementById('av-empresa-novaform');
+  const prefill = (document.getElementById('av-empresa-search') || { value: '' }).value.trim();
+  cont.innerHTML = `
+    <div class="assoc-nova-box">
+      <h4>Nova empresa</h4>
+      ${empresaCamposHTML({})}
+      <span class="field-error-msg" id="av-emp-aviso"></span>
+      <div class="form-actions">
+        <button type="button" id="av-emp-cancelar" class="btn-secondary">Cancelar</button>
+        <button type="button" id="av-emp-criar" class="btn-primary">Criar empresa</button>
+      </div>
+    </div>
+  `;
+  wireEmpresaCampos();
+  if (prefill) { const n = document.getElementById('ed-nome'); if (n) n.value = prefill; }
+  document.getElementById('av-criar-empresa').style.display = 'none';
+  document.getElementById('av-emp-cancelar').addEventListener('click', avFecharCriarEmpresa);
+  document.getElementById('av-emp-criar').addEventListener('click', avGuardarNovaEmpresaInline);
+}
+
+function avFecharCriarEmpresa() {
+  document.getElementById('av-empresa-novaform').innerHTML = '';
+  const btn = document.getElementById('av-criar-empresa');
+  if (btn) btn.style.display = '';
+}
+
+async function avGuardarNovaEmpresaInline() {
+  const e = lerEmpresaForm();
+  if (!e.nome || !e.distrito || !e.setor) {
+    document.getElementById('av-emp-aviso').textContent = 'Nome, distrito e setor são obrigatórios.';
+    return;
+  }
+  const btn = document.getElementById('av-emp-criar');
+  if (btn) { btn.disabled = true; btn.textContent = 'A criar...'; }
+  try {
+    const empresa_id = await SheetsAPI.createEmpresa(token, e);
+    dados.empresas.push({ empresa_id, ...e });
+    avFecharCriarEmpresa();
+    avEmpresaSel = { id: empresa_id, nome: e.nome };
+    renderAvEmpresaEscolhida();
+  } catch (err) {
+    document.getElementById('av-emp-aviso').textContent = 'Erro: ' + err.message;
+    if (btn) { btn.disabled = false; btn.textContent = 'Criar empresa'; }
+  }
+}
+
+// Criação inline de pessoa ligada à empresa da avença (conveniência; não toca na avença).
+function avAbrirCriarPessoa() {
+  if (!avEmpresaSel) return;
+  const cont = document.getElementById('av-pessoa-novaform');
+  cont.innerHTML = `
+    <div class="assoc-nova-box">
+      <h4>Nova pessoa — ${esc(avEmpresaSel.nome)}</h4>
+      ${pessoaCamposHTML({})}
+      <span class="field-error-msg" id="av-pes-aviso"></span>
+      <div class="form-actions">
+        <button type="button" id="av-pes-cancelar" class="btn-secondary">Cancelar</button>
+        <button type="button" id="av-pes-criar" class="btn-primary">Criar pessoa</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('av-criar-pessoa').style.display = 'none';
+  document.getElementById('av-pes-cancelar').addEventListener('click', avFecharCriarPessoa);
+  document.getElementById('av-pes-criar').addEventListener('click', avGuardarNovaPessoaInline);
+}
+
+function avFecharCriarPessoa() {
+  document.getElementById('av-pessoa-novaform').innerHTML = '';
+  const btn = document.getElementById('av-criar-pessoa');
+  if (btn) btn.style.display = '';
+}
+
+async function avGuardarNovaPessoaInline() {
+  if (!avEmpresaSel) return;
+  const p = lerPessoaForm();
+  if (!p.nome) { document.getElementById('av-pes-aviso').textContent = 'O nome é obrigatório.'; return; }
+  const empresa_id = avEmpresaSel.id;
+  const btn = document.getElementById('av-pes-criar');
+  if (btn) { btn.disabled = true; btn.textContent = 'A criar...'; }
+  try {
+    const pessoa_id = await SheetsAPI.createPessoa(token, { empresa_id, ...p });
+    dados.pessoas.push({ pessoa_id, empresa_id, ...p });
+    try { await SheetsAPI.addPessoaEmpresa(token, pessoa_id, empresa_id); dados.pessoaEmpresas.push({ pessoa_id, empresa_id }); } catch (e) {}
+    avFecharCriarPessoa();
+    const nome = `${p.nome} ${p.apelido || ''}`.trim();
+    document.getElementById('av-pessoa-feitos').innerHTML += `<div class="hint">✓ Contacto criado: ${esc(nome)}</div>`;
+  } catch (err) {
+    document.getElementById('av-pes-aviso').textContent = 'Erro: ' + err.message;
+    if (btn) { btn.disabled = false; btn.textContent = 'Criar pessoa'; }
+  }
 }
 
 async function guardarNovaAvenca() {
