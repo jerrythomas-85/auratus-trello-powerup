@@ -240,11 +240,11 @@ const SheetsAPI = {
   },
 
   // ---- AVENCAS (ARD) ----
-  // Colunas A:I — AVENCA_ID, EMPRESA_ID, TIPO, VALOR,
-  // DATA_INICIO, DATA_FIM, RENOVA, ESTADO, NOTAS
+  // Colunas A:K — AVENCA_ID, EMPRESA_ID, TIPO, VALOR, DATA_INICIO, DATA_FIM,
+  // RENOVA, ESTADO, NOTAS (notas do cliente), LINK_PASTA, CONTEMPLADO
 
   async getAllAvencas(token) {
-    const range = `${AURATUS_CONFIG.SHEETS.AVENCAS}!A2:I`;
+    const range = `${AURATUS_CONFIG.SHEETS.AVENCAS}!A2:K`;
     const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
     const res = await fetch(url, { headers: this.headers(token) });
     const data = await res.json();
@@ -260,7 +260,9 @@ const SheetsAPI = {
         data_fim: r[5] || '',
         renova: r[6] || '',
         estado: r[7] || '',
-        notas: r[8] || ''
+        notas: r[8] || '',
+        link_pasta: r[9] || '',
+        contemplado: r[10] || ''
       }));
   },
 
@@ -275,21 +277,23 @@ const SheetsAPI = {
       avenca.data_fim || '',
       avenca.renova || 'SIM',
       avenca.estado || 'ativa',
-      avenca.notas || ''
+      avenca.notas || '',
+      avenca.link_pasta || '',
+      avenca.contemplado || ''
     ];
     await this._appendRow(token, AURATUS_CONFIG.SHEETS.AVENCAS, row);
     return id;
   },
 
   async updateAvenca(token, avenca_id, avenca) {
-    const range = `${AURATUS_CONFIG.SHEETS.AVENCAS}!A2:I`;
+    const range = `${AURATUS_CONFIG.SHEETS.AVENCAS}!A2:K`;
     const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
     const res = await fetch(url, { headers: this.headers(token) });
     const data = await res.json();
     if (!data.values) return;
     const rowIndex = data.values.findIndex(r => r[0] === avenca_id);
     if (rowIndex === -1) return;
-    const updateRange = `${AURATUS_CONFIG.SHEETS.AVENCAS}!A${rowIndex + 2}:I${rowIndex + 2}`;
+    const updateRange = `${AURATUS_CONFIG.SHEETS.AVENCAS}!A${rowIndex + 2}:K${rowIndex + 2}`;
     const updateURL = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${updateRange}?valueInputOption=RAW`;
     await fetch(updateURL, {
       method: 'PUT',
@@ -305,7 +309,9 @@ const SheetsAPI = {
           avenca.data_fim || '',
           avenca.renova || '',
           avenca.estado || '',
-          avenca.notas || ''
+          avenca.notas || '',
+          avenca.link_pasta || '',
+          avenca.contemplado || ''
         ]]
       })
     });

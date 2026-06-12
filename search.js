@@ -776,7 +776,9 @@ function avencaForm(avenca) {
         <div class="form-group"><label>Data de início</label><input type="date" id="av-data-inicio" value="${editar ? esc(avenca.data_inicio) : ''}" /></div>
         <div class="form-group" id="av-grupo-fim"><label>Data de fim *</label><input type="date" id="av-data-fim" value="${editar ? esc(avenca.data_fim) : ''}" /></div>
       </div>
-      <div class="form-group"><label>Notas</label><textarea id="av-notas">${editar ? esc(avenca.notas) : ''}</textarea></div>
+      <div class="form-group"><label>Notas do cliente</label><textarea id="av-notas">${editar ? esc(avenca.notas) : ''}</textarea></div>
+      <div class="form-group"><label>Link da pasta</label><input type="url" id="av-link" placeholder="https://drive.google.com/..." value="${editar ? esc(avenca.link_pasta) : ''}" /></div>
+      <div class="form-group"><label>Contemplado (o que inclui)</label><textarea id="av-contemplado">${editar ? esc(avenca.contemplado) : ''}</textarea></div>
       <div class="info-row"><span class="label">Renova</span><span id="av-renova-info">—</span></div>
       <span class="field-error-msg" id="av-aviso"></span>
       <div class="form-actions">
@@ -971,7 +973,9 @@ function lerAvencaForm() {
     data_inicio: val('av-data-inicio'),
     data_fim,
     renova: avRenovaParaTipo(tipo),
-    notas: val('av-notas').trim()
+    notas: val('av-notas').trim(),
+    link_pasta: val('av-link').trim(),
+    contemplado: val('av-contemplado').trim()
   };
 }
 
@@ -1024,7 +1028,9 @@ async function cancelarAvenca(avenca_id) {
       data_fim: antiga.data_fim,
       renova: 'NÃO',
       estado: antiga.estado,
-      notas: antiga.notas
+      notas: antiga.notas,
+      link_pasta: antiga.link_pasta,
+      contemplado: antiga.contemplado
     };
     await SheetsAPI.updateAvenca(token, avenca_id, avenca);
     const idx = avencas.findIndex(a => a.avenca_id === avenca_id);
