@@ -8,6 +8,7 @@ let dados = { empresas: [], pessoas: [], pessoaEmpresas: [], cardAssoc: [], boar
 let importLinhas = [];
 let avencas = null; // lazy: null = ainda não carregadas
 let avEmpresaSel = null; // empresa escolhida no formulário de avença
+let avEditando = null;   // avença em edição (null = criar)
 
 document.addEventListener('DOMContentLoaded', async () => {
   t = TrelloPowerUp.iframe({
@@ -701,6 +702,12 @@ function renderArdTabela() {
       </table>
     </div>
   `;
+  tabela.querySelectorAll('tr[data-avenca-id]').forEach(tr => {
+    tr.addEventListener('click', () => {
+      const a = avencas.find(x => x.avenca_id === tr.dataset.avencaId);
+      if (a) avencaForm(a);
+    });
+  });
 }
 
 function avLinhaHTML(a) {
@@ -711,7 +718,7 @@ function avLinhaHTML(a) {
     ? `<strong class="${proximo ? 'av-fim-proximo' : ''}">${esc(a.data_fim)}${proximo ? ' ⚠' : ''}</strong>`
     : '—';
   return `
-    <tr class="${proximo ? 'av-linha-proxima' : ''}">
+    <tr class="crm-linha ${proximo ? 'av-linha-proxima' : ''}" data-avenca-id="${esc(a.avenca_id)}">
       <td>${esc(empresaNome)}</td>
       <td>${esc(a.tipo) || '—'}</td>
       <td>${a.valor ? esc(a.valor) + ' €' : '—'}</td>
@@ -728,12 +735,20 @@ function avTipoOptionsHTML(selecionado) {
   return tipos.map(tp => `<option value="${tp}"${tp === selecionado ? ' selected' : ''}>${tp}</option>`).join('');
 }
 
-function criarAvencaForm() {
+function criarAvencaForm() { avencaForm(null); }
+
+function avencaForm(avenca) {
+  const editar = !!avenca;
+  avEditando = avenca;
   avEmpresaSel = null;
+  if (editar) {
+    const emp = dados.empresas.find(e => e.empresa_id === avenca.empresa_id);
+    avEmpresaSel = { id: avenca.empresa_id, nome: emp ? emp.nome : (avenca.empresa_id || '—') };
+  }
   const det = document.getElementById('av-detalhe');
   det.innerHTML = `
     <div class="section">
-      <h2>Nova avença</h2>
+      <h2>${editar ? 'Editar avença' : 'Nova avença'}</h2>
       <div class="form-group">
         <label>Empresa *</label>
         <div id="av-empresa-escolhida"></div>
@@ -754,19 +769,20 @@ function criarAvencaForm() {
         <div class="form-group"><label>Tipo *</label>
           <select id="av-tipo">
             <option value="">— Selecionar —</option>
-            ${avTipoOptionsHTML('')}
+            ${avTipoOptionsHTML(editar ? avenca.tipo : '')}
           </select>
         </div>
-        <div class="form-group"><label>Valor (€)</label><input type="number" id="av-valor" step="0.01" min="0" /></div>
-        <div class="form-group"><label>Data de início</label><input type="date" id="av-data-inicio" /></div>
-        <div class="form-group" id="av-grupo-fim"><label>Data de fim *</label><input type="date" id="av-data-fim" /></div>
+        <div class="form-group"><label>Valor (€)</label><input type="number" id="av-valor" step="0.01" min="0" value="${editar ? esc(avenca.valor) : ''}" /></div>
+        <div class="form-group"><label>Data de início</label><input type="date" id="av-data-inicio" value="${editar ? esc(avenca.data_inicio) : ''}" /></div>
+        <div class="form-group" id="av-grupo-fim"><label>Data de fim *</label><input type="date" id="av-data-fim" value="${editar ? esc(avenca.data_fim) : ''}" /></div>
       </div>
-      <div class="form-group"><label>Notas</label><textarea id="av-notas"></textarea></div>
+      <div class="form-group"><label>Notas</label><textarea id="av-notas">${editar ? esc(avenca.notas) : ''}</textarea></div>
       <div class="info-row"><span class="label">Renova</span><span id="av-renova-info">—</span></div>
       <span class="field-error-msg" id="av-aviso"></span>
       <div class="form-actions">
-        <button id="av-cancelar" class="btn-secondary">Cancelar</button>
-        <button id="av-guardar" class="btn-primary">Criar avença</button>
+        <button id="av-cancelar" class="btn-secondary">${editar ? 'Fechar' : 'Cancelar'}</button>
+        ${editar ? `<button id="av-cancelar-avenca" class="btn-secondary btn-danger">Cancelar avença</button>` : ''}
+        <button id="av-guardar" class="btn-primary">${editar ? 'Guardar' : 'Criar avença'}</button>
       </div>
     </div>
   `;
@@ -774,17 +790,28 @@ function criarAvencaForm() {
   document.getElementById('av-criar-pessoa').addEventListener('click', avAbrirCriarPessoa);
   document.getElementById('av-tipo').addEventListener('change', avAtualizaPorTipo);
   document.getElementById('av-cancelar').addEventListener('click', () => { det.innerHTML = ''; });
-  document.getElementById('av-guardar').addEventListener('click', guardarNovaAvenca);
+  document.getElementById('av-guardar').addEventListener('click', editar ? () => guardarEdicaoAvenca(avenca.avenca_id) : guardarNovaAvenca);
+  if (editar) document.getElementById('av-cancelar-avenca').addEventListener('click', () => cancelarAvenca(avenca.avenca_id));
   avAtualizaPorTipo();
   det.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// Ajusta o formulário ao tipo: só os que renovam têm DATA_FIM (obrigatória) e RENOVA=SIM.
+// RENOVA a aplicar para um tipo: tipos que não renovam => NÃO.
+// Na edição de uma avença que já era renovável, preserva o valor atual
+// (ex.: NÃO, se foi cancelada). Caso contrário (criar, ou passou a renovável) => SIM.
+function avRenovaParaTipo(tipo) {
+  if (!AV_TIPOS_RENOVAM.includes(tipo)) return 'NÃO';
+  if (avEditando && AV_TIPOS_RENOVAM.includes(avEditando.tipo)) return avEditando.renova || 'SIM';
+  return 'SIM';
+}
+
+// Ajusta o formulário ao tipo: só os que renovam têm DATA_FIM (obrigatória).
 function avAtualizaPorTipo() {
-  const renova = AV_TIPOS_RENOVAM.includes(val('av-tipo'));
-  document.getElementById('av-grupo-fim').style.display = renova ? '' : 'none';
-  if (!renova) document.getElementById('av-data-fim').value = '';
-  document.getElementById('av-renova-info').textContent = renova ? 'SIM' : 'NÃO';
+  const tipo = val('av-tipo');
+  const renovaTipo = AV_TIPOS_RENOVAM.includes(tipo);
+  document.getElementById('av-grupo-fim').style.display = renovaTipo ? '' : 'none';
+  if (!renovaTipo) document.getElementById('av-data-fim').value = '';
+  document.getElementById('av-renova-info').textContent = avRenovaParaTipo(tipo);
 }
 
 function wireAvEmpresaPicker() {
@@ -927,27 +954,31 @@ async function avGuardarNovaPessoaInline() {
   }
 }
 
-async function guardarNovaAvenca() {
+// Lê e valida o formulário de avença. Devolve o objeto ou null (com aviso).
+function lerAvencaForm() {
   const aviso = document.getElementById('av-aviso');
   aviso.textContent = '';
   const tipo = val('av-tipo');
-  if (!avEmpresaSel) { aviso.textContent = 'Escolhe uma empresa.'; return; }
-  if (!tipo) { aviso.textContent = 'Escolhe o tipo.'; return; }
-  const renova = AV_TIPOS_RENOVAM.includes(tipo);
-  const data_fim = renova ? val('av-data-fim') : '';
-  if (renova && !data_fim) { aviso.textContent = 'Data de fim obrigatória para este tipo.'; return; }
-
-  const avenca = {
+  if (!avEmpresaSel) { aviso.textContent = 'Escolhe uma empresa.'; return null; }
+  if (!tipo) { aviso.textContent = 'Escolhe o tipo.'; return null; }
+  const renovaTipo = AV_TIPOS_RENOVAM.includes(tipo);
+  const data_fim = renovaTipo ? val('av-data-fim') : '';
+  if (renovaTipo && !data_fim) { aviso.textContent = 'Data de fim obrigatória para este tipo.'; return null; }
+  return {
     empresa_id: avEmpresaSel.id,
     tipo,
     valor: val('av-valor').trim(),
     data_inicio: val('av-data-inicio'),
     data_fim,
-    renova: renova ? 'SIM' : 'NÃO',
-    estado: 'ativa',
+    renova: avRenovaParaTipo(tipo),
     notas: val('av-notas').trim()
   };
+}
 
+async function guardarNovaAvenca() {
+  const avenca = lerAvencaForm();
+  if (!avenca) return;
+  avenca.estado = 'ativa';
   const det = document.getElementById('av-detalhe');
   det.innerHTML = `<p class="empty">A criar...</p>`;
   try {
@@ -957,6 +988,51 @@ async function guardarNovaAvenca() {
     renderArdTabela();
   } catch (err) {
     det.innerHTML = `<p class="empty">Erro ao criar: ${esc(err.message)}</p>`;
+  }
+}
+
+async function guardarEdicaoAvenca(avenca_id) {
+  const avenca = lerAvencaForm();
+  if (!avenca) return;
+  const antiga = avencas.find(a => a.avenca_id === avenca_id) || {};
+  avenca.estado = antiga.estado || 'ativa'; // ESTADO é gerido pelo Apps Script, não mexer
+  const det = document.getElementById('av-detalhe');
+  det.innerHTML = `<p class="empty">A guardar...</p>`;
+  try {
+    await SheetsAPI.updateAvenca(token, avenca_id, avenca);
+    const idx = avencas.findIndex(a => a.avenca_id === avenca_id);
+    if (idx !== -1) avencas[idx] = { avenca_id, ...avenca };
+    det.innerHTML = '';
+    renderArdTabela();
+  } catch (err) {
+    det.innerHTML = `<p class="empty">Erro ao guardar: ${esc(err.message)}</p>`;
+  }
+}
+
+// Cancelar avença: só muda RENOVA para NÃO. Mantém ESTADO e DATA_FIM.
+async function cancelarAvenca(avenca_id) {
+  const antiga = avencas.find(a => a.avenca_id === avenca_id);
+  if (!antiga) return;
+  const det = document.getElementById('av-detalhe');
+  det.innerHTML = `<p class="empty">A cancelar avença...</p>`;
+  try {
+    const avenca = {
+      empresa_id: antiga.empresa_id,
+      tipo: antiga.tipo,
+      valor: antiga.valor,
+      data_inicio: antiga.data_inicio,
+      data_fim: antiga.data_fim,
+      renova: 'NÃO',
+      estado: antiga.estado,
+      notas: antiga.notas
+    };
+    await SheetsAPI.updateAvenca(token, avenca_id, avenca);
+    const idx = avencas.findIndex(a => a.avenca_id === avenca_id);
+    if (idx !== -1) avencas[idx] = { avenca_id, ...avenca };
+    det.innerHTML = '';
+    renderArdTabela();
+  } catch (err) {
+    det.innerHTML = `<p class="empty">Erro ao cancelar: ${esc(err.message)}</p>`;
   }
 }
 
