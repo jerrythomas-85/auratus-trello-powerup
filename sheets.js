@@ -317,6 +317,68 @@ const SheetsAPI = {
     });
   },
 
+  // ---- EVENTOS ----
+  // Colunas A:F — EVENTO_ID, EMPRESA_ID, TIPO, DATA, DESCRICAO, ESTADO
+
+  async getEventosByEmpresa(token, empresaId) {
+    const range = `${AURATUS_CONFIG.SHEETS.EVENTOS}!A2:F`;
+    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
+    const res = await fetch(url, { headers: this.headers(token) });
+    const data = await res.json();
+    if (!data.values) return [];
+    return data.values
+      .filter(r => r[0] && r[1] === empresaId)
+      .map(r => ({
+        evento_id: r[0] || '',
+        empresa_id: r[1] || '',
+        tipo: r[2] || '',
+        data: r[3] || '',
+        descricao: r[4] || '',
+        estado: r[5] || ''
+      }));
+  },
+
+  async addEvento(token, evento) {
+    const id = 'EV_' + Date.now();
+    const row = [
+      id,
+      evento.empresa_id || '',
+      evento.tipo || '',
+      evento.data || '',
+      evento.descricao || '',
+      evento.estado || 'agendado'
+    ];
+    await this._appendRow(token, AURATUS_CONFIG.SHEETS.EVENTOS, row);
+    return id;
+  },
+
+  async updateEvento(token, evento_id, evento) {
+    const range = `${AURATUS_CONFIG.SHEETS.EVENTOS}!A2:F`;
+    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
+    const res = await fetch(url, { headers: this.headers(token) });
+    const data = await res.json();
+    if (!data.values) return;
+    const rowIndex = data.values.findIndex(r => r[0] === evento_id);
+    if (rowIndex === -1) return;
+    const updateRange = `${AURATUS_CONFIG.SHEETS.EVENTOS}!A${rowIndex + 2}:F${rowIndex + 2}`;
+    const updateURL = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${updateRange}?valueInputOption=RAW`;
+    await fetch(updateURL, {
+      method: 'PUT',
+      headers: this.headers(token),
+      body: JSON.stringify({
+        range: updateRange,
+        values: [[
+          evento_id,
+          evento.empresa_id || '',
+          evento.tipo || '',
+          evento.data || '',
+          evento.descricao || '',
+          evento.estado || ''
+        ]]
+      })
+    });
+  },
+
   // ---- DESASSOCIAR ----
 
   async deleteCardAssociacao(token, card_id) {
