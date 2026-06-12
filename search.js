@@ -1459,7 +1459,8 @@ function mostrarDetalheEmpresa(empresaId) {
   detalhe.innerHTML =
     fichaEmpresaHTML(empresa) +
     pessoasEmpresaHTML(empresaId) +
-    `<div class="section" id="cards-section"><h3>Cards</h3><p class="empty">A carregar cards...</p></div>`;
+    `<div class="section" id="cards-section"><h3>Cards</h3><p class="empty">A carregar cards...</p></div>` +
+    `<div class="section" id="eventos-section"><h3>Eventos</h3><p class="empty">A carregar eventos...</p></div>`;
 
   const btnEditar = document.getElementById('btn-editar-empresa');
   if (btnEditar) btnEditar.addEventListener('click', () => editarEmpresaForm(empresaId));
@@ -1476,6 +1477,141 @@ function mostrarDetalheEmpresa(empresaId) {
 
   const sel = detalhe.querySelector('.pessoa-filtro.selecionado');
   renderCardsEmpresa(empresaId, sel && sel.dataset.pessoaId ? sel.dataset.pessoaId : null);
+  renderEventosEmpresa(empresaId);
+}
+
+// ---- EVENTOS (na ficha da empresa) ----
+let eventosCache = { empresaId: null, eventos: [] };
+
+async function renderEventosEmpresa(empresaId) {
+  const section = document.getElementById('eventos-section');
+  if (!section) return;
+  try {
+    const eventos = await SheetsAPI.getEventosByEmpresa(token, empresaId);
+    eventosCache = { empresaId, eventos };
+  } catch (err) {
+    section.innerHTML = `<h3>Eventos</h3><p class="empty">Erro ao carregar eventos: ${esc(err.message)}</p>`;
+    return;
+  }
+  renderEventosLista(empresaId);
+}
+
+function renderEventosLista(empresaId) {
+  const section = document.getElementById('eventos-section');
+  if (!section) return;
+  const eventos = (eventosCache.eventos || []).slice().sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+  section.innerHTML = `
+    <div class="section-header">
+      <h3>Eventos (${eventos.length})</h3>
+      <button class="btn-link" id="btn-novo-evento">+ Novo evento</button>
+    </div>
+    <div id="eventos-lista">
+      ${eventos.length ? eventos.map(eventoLinhaHTML).join('') : '<p class="empty">Sem eventos.</p>'}
+    </div>
+    <div id="evento-form"></div>
+  `;
+  document.getElementById('btn-novo-evento').addEventListener('click', () => eventoForm(empresaId, null));
+  section.querySelectorAll('.evento-item').forEach(item => {
+    const id = item.dataset.eventoId;
+    item.querySelector('.evento-editar').addEventListener('click', () => {
+      const e = eventosCache.eventos.find(x => x.evento_id === id);
+      if (e) eventoForm(empresaId, e);
+    });
+    item.querySelector('.evento-toggle').addEventListener('click', () => toggleEventoEstado(empresaId, id));
+  });
+}
+
+function eventoLinhaHTML(e) {
+  const feito = e.estado === 'feito';
+  return `
+    <div class="evento-item" data-evento-id="${esc(e.evento_id)}">
+      <div class="evento-info">
+        <strong>${esc(e.tipo) || '—'}</strong>
+        <span>${esc(e.data) || '—'}${e.descricao ? ' · ' + esc(e.descricao) : ''}</span>
+      </div>
+      <div class="evento-acoes">
+        <span class="evento-estado ${feito ? 'feito' : 'agendado'}">${esc(e.estado) || '—'}</span>
+        <button class="btn-icon evento-toggle" title="${feito ? 'Marcar agendado' : 'Marcar feito'}">${feito ? '↩' : '✓'}</button>
+        <button class="btn-icon evento-editar" title="Editar">✏️</button>
+      </div>
+    </div>
+  `;
+}
+
+function eventoForm(empresaId, evento) {
+  const editar = !!evento;
+  const cont = document.getElementById('evento-form');
+  const op = (v, atual) => `<option value="${v}"${atual === v ? ' selected' : ''}>${v}</option>`;
+  cont.innerHTML = `
+    <div class="assoc-nova-box">
+      <h4>${editar ? 'Editar evento' : 'Novo evento'}</h4>
+      <div class="form-grid">
+        <div class="form-group"><label>Tipo *</label>
+          <select id="ev-tipo">
+            <option value="">— Selecionar —</option>
+            ${op('reunião', editar ? evento.tipo : '')}
+            ${op('sessão', editar ? evento.tipo : '')}
+            ${op('outro', editar ? evento.tipo : '')}
+          </select>
+        </div>
+        <div class="form-group"><label>Data</label><input type="date" id="ev-data" value="${editar ? esc(evento.data) : ''}" /></div>
+        <div class="form-group"><label>Estado</label>
+          <select id="ev-estado">
+            ${op('agendado', editar ? evento.estado : 'agendado')}
+            ${op('feito', editar ? evento.estado : 'agendado')}
+          </select>
+        </div>
+      </div>
+      <div class="form-group"><label>Descrição</label><textarea id="ev-descricao">${editar ? esc(evento.descricao) : ''}</textarea></div>
+      <span class="field-error-msg" id="ev-aviso"></span>
+      <div class="form-actions">
+        <button id="ev-cancelar" class="btn-secondary">Cancelar</button>
+        <button id="ev-guardar" class="btn-primary">${editar ? 'Guardar' : 'Criar evento'}</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('ev-cancelar').addEventListener('click', () => { cont.innerHTML = ''; });
+  document.getElementById('ev-guardar').addEventListener('click', () => guardarEvento(empresaId, editar ? evento.evento_id : null));
+}
+
+async function guardarEvento(empresaId, evento_id) {
+  const aviso = document.getElementById('ev-aviso');
+  aviso.textContent = '';
+  const tipo = val('ev-tipo');
+  if (!tipo) { aviso.textContent = 'Escolhe o tipo.'; return; }
+  const evento = {
+    empresa_id: empresaId,
+    tipo,
+    data: val('ev-data'),
+    descricao: val('ev-descricao').trim(),
+    estado: val('ev-estado') || 'agendado'
+  };
+  const cont = document.getElementById('evento-form');
+  cont.innerHTML = `<p class="empty">A guardar...</p>`;
+  try {
+    if (evento_id) {
+      await SheetsAPI.updateEvento(token, evento_id, evento);
+      const idx = eventosCache.eventos.findIndex(e => e.evento_id === evento_id);
+      if (idx !== -1) eventosCache.eventos[idx] = { evento_id, ...evento };
+    } else {
+      const id = await SheetsAPI.addEvento(token, evento);
+      eventosCache.eventos.push({ evento_id: id, ...evento });
+    }
+    renderEventosLista(empresaId);
+  } catch (err) {
+    cont.innerHTML = `<p class="empty">Erro ao guardar: ${esc(err.message)}</p>`;
+  }
+}
+
+async function toggleEventoEstado(empresaId, evento_id) {
+  const e = eventosCache.eventos.find(x => x.evento_id === evento_id);
+  if (!e) return;
+  const novoEstado = e.estado === 'feito' ? 'agendado' : 'feito';
+  try {
+    await SheetsAPI.updateEvento(token, evento_id, { ...e, estado: novoEstado });
+    e.estado = novoEstado;
+    renderEventosLista(empresaId);
+  } catch (err) {}
 }
 
 function campoHTML(label, valor) {

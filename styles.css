@@ -818,6 +818,58 @@ h3 {
   cursor: pointer;
 }
 
+/* Eventos na ficha da empresa */
+.evento-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.evento-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.evento-info strong {
+  font-size: 13px;
+  color: #172b4d;
+  text-transform: capitalize;
+}
+
+.evento-info span {
+  font-size: 11px;
+  color: #5e6c84;
+}
+
+.evento-acoes {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.evento-estado {
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 1px 6px;
+}
+
+.evento-estado.feito {
+  background: #e3fcef;
+  color: #006644;
+}
+
+.evento-estado.agendado {
+  background: #deebff;
+  color: #0747a6;
+}
+
 /* Avença a expirar nos próximos 30 dias */
 .av-linha-proxima td {
   background: #fffae6;
