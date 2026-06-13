@@ -1620,11 +1620,20 @@ function eventosMesHTML(mes) {
   return `<div class="evento-mes"><h3>${esc(nome)}</h3>${corpo}</div>`;
 }
 
+function eventoCorClasse(tipo) {
+  const x = (tipo || '').toLowerCase();
+  if (x.startsWith('reuni')) return 'ev-cor-reuniao';
+  if (x.startsWith('sess')) return 'ev-cor-sessao';
+  if (x.startsWith('aplica')) return 'ev-cor-aplicacao';
+  if (x.startsWith('outro')) return 'ev-cor-outro';
+  return '';
+}
+
 function eventoItemHTML(e) {
   const empresa = dados.empresas.find(x => x.empresa_id === e.empresa_id);
   const empresaNome = empresa ? empresa.nome : (e.empresa_id || '—');
   return `
-    <div class="evento-item" data-evento-id="${esc(e.evento_id)}">
+    <div class="evento-item ${eventoCorClasse(e.tipo)}" data-evento-id="${esc(e.evento_id)}">
       <div class="evento-info">
         <strong>${esc(e.tipo) || '—'} · ${esc(empresaNome)}</strong>
         ${e.descricao ? `<span>${esc(e.descricao)}</span>` : ''}

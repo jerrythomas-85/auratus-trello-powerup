@@ -824,9 +824,15 @@ h3 {
   justify-content: space-between;
   align-items: center;
   gap: 8px;
-  padding: 8px 0;
+  padding: 8px;
   border-bottom: 1px solid #f0f0f0;
+  border-left: 4px solid transparent;
 }
+
+.ev-cor-reuniao { border-left-color: #eb5a46; }
+.ev-cor-sessao { border-left-color: #f2d600; }
+.ev-cor-aplicacao { border-left-color: #61bd4f; }
+.ev-cor-outro { border-left-color: #0079bf; }
 
 .evento-info {
   display: flex;
