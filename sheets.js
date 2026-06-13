@@ -318,24 +318,32 @@ const SheetsAPI = {
   },
 
   // ---- EVENTOS ----
-  // Colunas A:F — EVENTO_ID, EMPRESA_ID, TIPO, DATA, DESCRICAO, ESTADO
+  // Colunas A:F — EVENTO_ID, EMPRESA_ID, TIPO, DATA, DESCRICAO, UTILIZADORES
+  // UTILIZADORES: nomes de membros da equipa separados por vírgula.
 
-  async getEventosByEmpresa(token, empresaId) {
+  _mapEvento(r) {
+    return {
+      evento_id: r[0] || '',
+      empresa_id: r[1] || '',
+      tipo: r[2] || '',
+      data: r[3] || '',
+      descricao: r[4] || '',
+      utilizadores: r[5] || ''
+    };
+  },
+
+  async getAllEventos(token) {
     const range = `${AURATUS_CONFIG.SHEETS.EVENTOS}!A2:F`;
     const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
     const res = await fetch(url, { headers: this.headers(token) });
     const data = await res.json();
     if (!data.values) return [];
-    return data.values
-      .filter(r => r[0] && r[1] === empresaId)
-      .map(r => ({
-        evento_id: r[0] || '',
-        empresa_id: r[1] || '',
-        tipo: r[2] || '',
-        data: r[3] || '',
-        descricao: r[4] || '',
-        estado: r[5] || ''
-      }));
+    return data.values.filter(r => r[0]).map(r => this._mapEvento(r));
+  },
+
+  async getEventosByEmpresa(token, empresaId) {
+    const todos = await this.getAllEventos(token);
+    return todos.filter(e => e.empresa_id === empresaId);
   },
 
   async addEvento(token, evento) {
@@ -346,7 +354,7 @@ const SheetsAPI = {
       evento.tipo || '',
       evento.data || '',
       evento.descricao || '',
-      evento.estado || 'agendado'
+      evento.utilizadores || ''
     ];
     await this._appendRow(token, AURATUS_CONFIG.SHEETS.EVENTOS, row);
     return id;
@@ -373,10 +381,17 @@ const SheetsAPI = {
           evento.tipo || '',
           evento.data || '',
           evento.descricao || '',
-          evento.estado || ''
+          evento.utilizadores || ''
         ]]
       })
     });
+  },
+
+  async deleteEvento(token, evento_id) {
+    const rows = await this._fetchValues(token, `${AURATUS_CONFIG.SHEETS.EVENTOS}!A2:A`);
+    const idx = rows.findIndex(r => r[0] === evento_id);
+    if (idx === -1) return;
+    await this._deleteRows(token, [{ title: AURATUS_CONFIG.SHEETS.EVENTOS, rowIndex: idx }]);
   },
 
   // ---- DESASSOCIAR ----

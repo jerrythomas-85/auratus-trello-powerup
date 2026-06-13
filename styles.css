@@ -870,6 +870,64 @@ h3 {
   color: #0747a6;
 }
 
+/* Aba Eventos (calendário 3 meses) */
+.eventos-topo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.eventos-nav {
+  display: flex;
+  gap: 6px;
+}
+
+.evento-mes {
+  margin-bottom: 20px;
+}
+
+.evento-mes h3 {
+  text-transform: capitalize;
+  color: #0052cc;
+  font-size: 14px;
+  border-bottom: 2px solid #dfe1e6;
+  padding-bottom: 4px;
+  letter-spacing: 0;
+}
+
+.evento-dia {
+  margin: 8px 0;
+}
+
+.evento-dia-cab {
+  font-size: 12px;
+  font-weight: 600;
+  color: #5e6c84;
+  text-transform: capitalize;
+  margin-bottom: 4px;
+}
+
+.evento-users {
+  color: #5e6c84;
+}
+
+.ev-users {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.ev-users .ev-user {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: normal;
+  color: #172b4d;
+  text-transform: none;
+}
+
 /* Avença a expirar nos próximos 30 dias */
 .av-linha-proxima td {
   background: #fffae6;

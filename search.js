@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   Auth.init(t);
   setupTabs();
   document.querySelector('.tab[data-tab="ard"]').addEventListener('click', renderArdTab);
+  document.querySelector('.tab[data-tab="eventos"]').addEventListener('click', renderEventosTab);
   document.getElementById('tab-empresas').innerHTML = `<p class="empty">A carregar...</p>`;
   await carregarDados();
   renderEmpresasTab();
@@ -1459,8 +1460,7 @@ function mostrarDetalheEmpresa(empresaId) {
   detalhe.innerHTML =
     fichaEmpresaHTML(empresa) +
     pessoasEmpresaHTML(empresaId) +
-    `<div class="section" id="cards-section"><h3>Cards</h3><p class="empty">A carregar cards...</p></div>` +
-    `<div class="section" id="eventos-section"><h3>Eventos</h3><p class="empty">A carregar eventos...</p></div>`;
+    `<div class="section" id="cards-section"><h3>Cards</h3><p class="empty">A carregar cards...</p></div>`;
 
   const btnEditar = document.getElementById('btn-editar-empresa');
   if (btnEditar) btnEditar.addEventListener('click', () => editarEmpresaForm(empresaId));
@@ -1477,92 +1477,148 @@ function mostrarDetalheEmpresa(empresaId) {
 
   const sel = detalhe.querySelector('.pessoa-filtro.selecionado');
   renderCardsEmpresa(empresaId, sel && sel.dataset.pessoaId ? sel.dataset.pessoaId : null);
-  renderEventosEmpresa(empresaId);
 }
 
-// ---- EVENTOS (na ficha da empresa) ----
-let eventosCache = { empresaId: null, eventos: [] };
+// ---- SEPARADOR EVENTOS (calendário de 3 meses) ----
+let todosEventos = null;     // lazy
+let boardMembros = [];       // membros do board Trello { id, nome }
+let eventosBase = null;      // primeiro mês da janela (Date)
+let evEmpresaSel = null;     // empresa escolhida no formulário de evento
 
-async function renderEventosEmpresa(empresaId) {
-  const section = document.getElementById('eventos-section');
-  if (!section) return;
+function addMeses(d, n) { return new Date(d.getFullYear(), d.getMonth() + n, 1); }
+function parseDataEvento(s) {
+  if (!s) return null;
+  const d = new Date(s + 'T00:00:00');
+  return isNaN(d.getTime()) ? null : d;
+}
+
+async function renderEventosTab() {
+  if (todosEventos !== null) return; // lazy: carrega uma vez
+  const panel = document.getElementById('tab-eventos');
+  panel.innerHTML = `<p class="empty">A carregar eventos...</p>`;
   try {
-    const eventos = await SheetsAPI.getEventosByEmpresa(token, empresaId);
-    eventosCache = { empresaId, eventos };
+    const [evs, board] = await Promise.all([
+      SheetsAPI.getAllEventos(token),
+      t.board('members').catch(() => ({ members: [] }))
+    ]);
+    todosEventos = evs;
+    boardMembros = (board.members || []).map(m => ({ id: m.id, nome: m.fullName || m.username || m.id }));
   } catch (err) {
-    section.innerHTML = `<h3>Eventos</h3><p class="empty">Erro ao carregar eventos: ${esc(err.message)}</p>`;
+    panel.innerHTML = `<p class="empty">Erro ao carregar eventos: ${esc(err.message)}</p>`;
     return;
   }
-  renderEventosLista(empresaId);
-}
-
-function renderEventosLista(empresaId) {
-  const section = document.getElementById('eventos-section');
-  if (!section) return;
-  const eventos = (eventosCache.eventos || []).slice().sort((a, b) => (b.data || '').localeCompare(a.data || ''));
-  section.innerHTML = `
-    <div class="section-header">
-      <h3>Eventos (${eventos.length})</h3>
-      <button class="btn-link" id="btn-novo-evento">+ Novo evento</button>
+  const hoje = new Date();
+  eventosBase = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  panel.innerHTML = `
+    <div class="eventos-topo">
+      <span class="eventos-nav">
+        <button id="ev-prev" class="btn-icon" title="Meses anteriores">◀</button>
+        <button id="ev-next" class="btn-icon" title="Meses seguintes">▶</button>
+      </span>
+      <button id="btn-novo-evento" class="btn-primary btn-novo">+ Novo evento</button>
     </div>
-    <div id="eventos-lista">
-      ${eventos.length ? eventos.map(eventoLinhaHTML).join('') : '<p class="empty">Sem eventos.</p>'}
-    </div>
+    <div id="eventos-cal"></div>
     <div id="evento-form"></div>
   `;
-  document.getElementById('btn-novo-evento').addEventListener('click', () => eventoForm(empresaId, null));
-  section.querySelectorAll('.evento-item').forEach(item => {
+  document.getElementById('ev-prev').addEventListener('click', () => { eventosBase = addMeses(eventosBase, -1); renderEventosCal(); });
+  document.getElementById('ev-next').addEventListener('click', () => { eventosBase = addMeses(eventosBase, 1); renderEventosCal(); });
+  document.getElementById('btn-novo-evento').addEventListener('click', () => eventoForm(null));
+  renderEventosCal();
+}
+
+function renderEventosCal() {
+  const cont = document.getElementById('eventos-cal');
+  if (!cont) return;
+  cont.innerHTML = [0, 1, 2].map(i => eventosMesHTML(addMeses(eventosBase, i))).join('');
+  cont.querySelectorAll('.evento-item[data-evento-id]').forEach(item => {
     const id = item.dataset.eventoId;
     item.querySelector('.evento-editar').addEventListener('click', () => {
-      const e = eventosCache.eventos.find(x => x.evento_id === id);
-      if (e) eventoForm(empresaId, e);
+      const ev = todosEventos.find(x => x.evento_id === id);
+      if (ev) eventoForm(ev);
     });
-    item.querySelector('.evento-toggle').addEventListener('click', () => toggleEventoEstado(empresaId, id));
+    item.querySelector('.evento-eliminar').addEventListener('click', () => eliminarEvento(id));
   });
 }
 
-function eventoLinhaHTML(e) {
-  const feito = e.estado === 'feito';
+function eventosMesHTML(mes) {
+  const ano = mes.getFullYear(), m = mes.getMonth();
+  const nome = mes.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+  const doMes = todosEventos.filter(e => {
+    const d = parseDataEvento(e.data);
+    return d && d.getFullYear() === ano && d.getMonth() === m;
+  }).sort((a, b) => a.data.localeCompare(b.data));
+
+  let corpo;
+  if (!doMes.length) {
+    corpo = `<p class="empty">Sem eventos.</p>`;
+  } else {
+    const porDia = {};
+    doMes.forEach(e => { (porDia[e.data] = porDia[e.data] || []).push(e); });
+    corpo = Object.keys(porDia).sort().map(dia => {
+      const d = parseDataEvento(dia);
+      const label = d ? d.toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit' }) : dia;
+      return `<div class="evento-dia"><div class="evento-dia-cab">${esc(label)}</div>${porDia[dia].map(eventoItemHTML).join('')}</div>`;
+    }).join('');
+  }
+  return `<div class="evento-mes"><h3>${esc(nome)}</h3>${corpo}</div>`;
+}
+
+function eventoItemHTML(e) {
+  const empresa = dados.empresas.find(x => x.empresa_id === e.empresa_id);
+  const empresaNome = empresa ? empresa.nome : (e.empresa_id || '—');
   return `
     <div class="evento-item" data-evento-id="${esc(e.evento_id)}">
       <div class="evento-info">
-        <strong>${esc(e.tipo) || '—'}</strong>
-        <span>${esc(e.data) || '—'}${e.descricao ? ' · ' + esc(e.descricao) : ''}</span>
+        <strong>${esc(e.tipo) || '—'} · ${esc(empresaNome)}</strong>
+        ${e.descricao ? `<span>${esc(e.descricao)}</span>` : ''}
+        ${e.utilizadores ? `<span class="evento-users">👤 ${esc(e.utilizadores)}</span>` : ''}
       </div>
       <div class="evento-acoes">
-        <span class="evento-estado ${feito ? 'feito' : 'agendado'}">${esc(e.estado) || '—'}</span>
-        <button class="btn-icon evento-toggle" title="${feito ? 'Marcar agendado' : 'Marcar feito'}">${feito ? '↩' : '✓'}</button>
         <button class="btn-icon evento-editar" title="Editar">✏️</button>
+        <button class="btn-icon btn-danger evento-eliminar" title="Eliminar">🗑️</button>
       </div>
     </div>
   `;
 }
 
-function eventoForm(empresaId, evento) {
+function eventoForm(evento) {
   const editar = !!evento;
+  evEmpresaSel = null;
+  if (editar) {
+    const emp = dados.empresas.find(x => x.empresa_id === evento.empresa_id);
+    evEmpresaSel = { id: evento.empresa_id, nome: emp ? emp.nome : (evento.empresa_id || '—') };
+  }
+  const usersSel = editar ? (evento.utilizadores || '').split(',').map(s => s.trim()).filter(Boolean) : [];
   const cont = document.getElementById('evento-form');
-  const op = (v, atual) => `<option value="${v}"${atual === v ? ' selected' : ''}>${v}</option>`;
   cont.innerHTML = `
     <div class="assoc-nova-box">
       <h4>${editar ? 'Editar evento' : 'Novo evento'}</h4>
+      <div class="form-group">
+        <label>Empresa *</label>
+        <div id="ev-empresa-escolhida"></div>
+        <div id="ev-empresa-pesquisa">
+          <input type="text" id="ev-empresa-search" placeholder="Pesquisar empresa..." autocomplete="off" />
+          <div id="ev-empresa-res" class="resultados"></div>
+        </div>
+      </div>
       <div class="form-grid">
         <div class="form-group"><label>Tipo *</label>
           <select id="ev-tipo">
             <option value="">— Selecionar —</option>
-            ${op('reunião', editar ? evento.tipo : '')}
-            ${op('sessão', editar ? evento.tipo : '')}
-            ${op('outro', editar ? evento.tipo : '')}
+            ${['reunião', 'sessão', 'outro'].map(tp => `<option value="${tp}"${editar && evento.tipo === tp ? ' selected' : ''}>${tp}</option>`).join('')}
           </select>
         </div>
-        <div class="form-group"><label>Data</label><input type="date" id="ev-data" value="${editar ? esc(evento.data) : ''}" /></div>
-        <div class="form-group"><label>Estado</label>
-          <select id="ev-estado">
-            ${op('agendado', editar ? evento.estado : 'agendado')}
-            ${op('feito', editar ? evento.estado : 'agendado')}
-          </select>
-        </div>
+        <div class="form-group"><label>Data *</label><input type="date" id="ev-data" value="${editar ? esc(evento.data) : ''}" /></div>
       </div>
       <div class="form-group"><label>Descrição</label><textarea id="ev-descricao">${editar ? esc(evento.descricao) : ''}</textarea></div>
+      <div class="form-group">
+        <label>Utilizadores da equipa</label>
+        <div class="ev-users">
+          ${boardMembros.length
+            ? boardMembros.map(mb => `<label class="ev-user"><input type="checkbox" value="${esc(mb.nome)}" ${usersSel.includes(mb.nome) ? 'checked' : ''} /> ${esc(mb.nome)}</label>`).join('')
+            : '<span class="hint">Sem membros no board.</span>'}
+        </div>
+      </div>
       <span class="field-error-msg" id="ev-aviso"></span>
       <div class="form-actions">
         <button id="ev-cancelar" class="btn-secondary">Cancelar</button>
@@ -1570,48 +1626,114 @@ function eventoForm(empresaId, evento) {
       </div>
     </div>
   `;
+  wireEvEmpresaPicker();
   document.getElementById('ev-cancelar').addEventListener('click', () => { cont.innerHTML = ''; });
-  document.getElementById('ev-guardar').addEventListener('click', () => guardarEvento(empresaId, editar ? evento.evento_id : null));
+  document.getElementById('ev-guardar').addEventListener('click', () => guardarEvento(editar ? evento.evento_id : null));
+  cont.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-async function guardarEvento(empresaId, evento_id) {
+function wireEvEmpresaPicker() {
+  const input = document.getElementById('ev-empresa-search');
+  const res = document.getElementById('ev-empresa-res');
+  input.addEventListener('input', function() {
+    const q = this.value.toLowerCase().trim();
+    if (!q) { res.innerHTML = ''; return; }
+    const filtradas = dados.empresas.filter(e => (e.nome || '').toLowerCase().includes(q)).slice(0, 8);
+    res.innerHTML = filtradas.length
+      ? filtradas.map(e => `<div class="resultado-item" data-id="${esc(e.empresa_id)}"><strong>${esc(e.nome)}</strong>${e.distrito ? `<span>${esc(e.distrito)}</span>` : ''}</div>`).join('')
+      : `<p class="empty">Nenhuma empresa encontrada.</p>`;
+    res.querySelectorAll('.resultado-item').forEach(el => el.addEventListener('click', () => {
+      const emp = dados.empresas.find(e => e.empresa_id === el.dataset.id);
+      evEmpresaSel = emp ? { id: emp.empresa_id, nome: emp.nome } : null;
+      input.value = '';
+      res.innerHTML = '';
+      renderEvEmpresaEscolhida();
+    }));
+  });
+  renderEvEmpresaEscolhida();
+}
+
+function renderEvEmpresaEscolhida() {
+  const cont = document.getElementById('ev-empresa-escolhida');
+  if (!cont) return;
+  const pesquisa = document.getElementById('ev-empresa-pesquisa');
+  if (evEmpresaSel) {
+    cont.innerHTML = `<div class="resultado-item selecionado assoc-chip"><strong>${esc(evEmpresaSel.nome)}</strong><span class="assoc-remover" title="Trocar">✕</span></div>`;
+    cont.querySelector('.assoc-remover').addEventListener('click', () => { evEmpresaSel = null; renderEvEmpresaEscolhida(); });
+    if (pesquisa) pesquisa.style.display = 'none';
+  } else {
+    cont.innerHTML = '';
+    if (pesquisa) pesquisa.style.display = '';
+  }
+}
+
+async function guardarEvento(evento_id) {
   const aviso = document.getElementById('ev-aviso');
   aviso.textContent = '';
   const tipo = val('ev-tipo');
+  const data = val('ev-data');
+  if (!evEmpresaSel) { aviso.textContent = 'Escolhe uma empresa.'; return; }
   if (!tipo) { aviso.textContent = 'Escolhe o tipo.'; return; }
+  if (!data) { aviso.textContent = 'Escolhe a data.'; return; }
+  const utilizadores = Array.from(document.querySelectorAll('.ev-users input:checked')).map(c => c.value).join(', ');
   const evento = {
-    empresa_id: empresaId,
+    empresa_id: evEmpresaSel.id,
     tipo,
-    data: val('ev-data'),
+    data,
     descricao: val('ev-descricao').trim(),
-    estado: val('ev-estado') || 'agendado'
+    utilizadores
   };
   const cont = document.getElementById('evento-form');
   cont.innerHTML = `<p class="empty">A guardar...</p>`;
   try {
     if (evento_id) {
       await SheetsAPI.updateEvento(token, evento_id, evento);
-      const idx = eventosCache.eventos.findIndex(e => e.evento_id === evento_id);
-      if (idx !== -1) eventosCache.eventos[idx] = { evento_id, ...evento };
+      const idx = todosEventos.findIndex(e => e.evento_id === evento_id);
+      if (idx !== -1) todosEventos[idx] = { evento_id, ...evento };
     } else {
       const id = await SheetsAPI.addEvento(token, evento);
-      eventosCache.eventos.push({ evento_id: id, ...evento });
+      todosEventos.push({ evento_id: id, ...evento });
     }
-    renderEventosLista(empresaId);
+    const d = parseDataEvento(data);
+    if (d) {
+      const diff = (d.getFullYear() * 12 + d.getMonth()) - (eventosBase.getFullYear() * 12 + eventosBase.getMonth());
+      if (diff < 0 || diff > 2) eventosBase = new Date(d.getFullYear(), d.getMonth(), 1);
+    }
+    cont.innerHTML = '';
+    renderEventosCal();
   } catch (err) {
     cont.innerHTML = `<p class="empty">Erro ao guardar: ${esc(err.message)}</p>`;
   }
 }
 
-async function toggleEventoEstado(empresaId, evento_id) {
-  const e = eventosCache.eventos.find(x => x.evento_id === evento_id);
+function eliminarEvento(evento_id) {
+  const e = todosEventos.find(x => x.evento_id === evento_id);
   if (!e) return;
-  const novoEstado = e.estado === 'feito' ? 'agendado' : 'feito';
-  try {
-    await SheetsAPI.updateEvento(token, evento_id, { ...e, estado: novoEstado });
-    e.estado = novoEstado;
-    renderEventosLista(empresaId);
-  } catch (err) {}
+  const empresa = dados.empresas.find(x => x.empresa_id === e.empresa_id);
+  const cont = document.getElementById('evento-form');
+  cont.innerHTML = `
+    <div class="assoc-nova-box">
+      <h4>Eliminar evento</h4>
+      <p>Eliminar <strong>${esc(e.tipo)} · ${esc(empresa ? empresa.nome : e.empresa_id)}</strong> (${esc(e.data) || 'sem data'})? Esta ação é irreversível.</p>
+      <div class="form-actions">
+        <button id="ev-del-cancelar" class="btn-secondary">Cancelar</button>
+        <button id="ev-del-confirmar" class="btn-perigo">Eliminar</button>
+      </div>
+    </div>
+  `;
+  cont.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  document.getElementById('ev-del-cancelar').addEventListener('click', () => { cont.innerHTML = ''; });
+  document.getElementById('ev-del-confirmar').addEventListener('click', async () => {
+    cont.innerHTML = `<p class="empty">A eliminar...</p>`;
+    try {
+      await SheetsAPI.deleteEvento(token, evento_id);
+      todosEventos = todosEventos.filter(x => x.evento_id !== evento_id);
+      cont.innerHTML = '';
+      renderEventosCal();
+    } catch (err) {
+      cont.innerHTML = `<p class="empty">Erro ao eliminar: ${esc(err.message)}</p>`;
+    }
+  });
 }
 
 function campoHTML(label, valor) {
