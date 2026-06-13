@@ -1485,6 +1485,34 @@ let boardMembros = [];       // membros do board Trello { id, nome }
 let eventosBase = null;      // primeiro mês da janela (Date)
 let evEmpresaSel = null;     // empresa escolhida no formulário de evento
 
+function mapMembro(m) {
+  const nome = m.fullName || m.username || m.id;
+  const avatar = m.avatarUrl ? m.avatarUrl.replace(/\/+$/, '') + '/30.png' : null;
+  const iniciais = nome.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  return { id: m.id, nome, avatar, iniciais };
+}
+
+// Membros do board com avatar. Tenta a API REST (avatarUrl fiável); se a REST
+// não estiver autorizada, recorre ao t.board('members') (normalmente sem foto).
+async function carregarMembros() {
+  try {
+    const restApi = t.getRestApi();
+    if (await restApi.isAuthorized()) {
+      const restToken = await restApi.getToken();
+      const board = await t.board('id');
+      const key = AURATUS_CONFIG.TRELLO_API_KEY;
+      const url = `https://api.trello.com/1/boards/${board.id}/members?fields=fullName,username,avatarUrl&key=${key}&token=${restToken}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const membros = await res.json();
+        if (Array.isArray(membros) && membros.length) return membros.map(mapMembro);
+      }
+    }
+  } catch (e) {}
+  const board = await t.board('members').catch(() => ({ members: [] }));
+  return (board.members || []).map(mapMembro);
+}
+
 function addMeses(d, n) { return new Date(d.getFullYear(), d.getMonth() + n, 1); }
 function parseDataEvento(s) {
   if (!s) return null;
@@ -1526,19 +1554,12 @@ async function renderEventosTab() {
   const panel = document.getElementById('tab-eventos');
   panel.innerHTML = `<p class="empty">A carregar eventos...</p>`;
   try {
-    const [evs, board] = await Promise.all([
+    const [evs, membros] = await Promise.all([
       SheetsAPI.getAllEventos(token),
-      t.board('members').catch(() => ({ members: [] }))
+      carregarMembros()
     ]);
     todosEventos = evs;
-    boardMembros = (board.members || []).map(m => {
-      const nome = m.fullName || m.username || m.id;
-      let base = m.avatarUrl || '';
-      if (!base && m.avatar) base = /^https?:/.test(m.avatar) ? m.avatar : `https://trello-members.s3.amazonaws.com/${m.id}/${m.avatar}`;
-      const avatar = base ? base.replace(/\/+$/, '') + '/30.png' : null;
-      const iniciais = nome.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
-      return { id: m.id, nome, avatar, iniciais };
-    });
+    boardMembros = membros;
   } catch (err) {
     panel.innerHTML = `<p class="empty">Erro ao carregar eventos: ${esc(err.message)}</p>`;
     return;
