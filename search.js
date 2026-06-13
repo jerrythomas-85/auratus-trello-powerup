@@ -1498,16 +1498,21 @@ function evTipoOptionsHTML(sel) {
   return todos.map(tp => `<option value="${esc(tp)}"${tp === sel ? ' selected' : ''}>${esc(tp)}</option>`).join('');
 }
 
+// Círculo com iniciais; se houver foto, é sobreposta. Se a foto falhar, remove-se
+// e ficam as iniciais (nunca mostra imagem partida).
+function avatarHTML(iniciais, avatar) {
+  const img = avatar ? `<img src="${esc(avatar)}" class="ev-avatar-img" alt="" onerror="this.remove()">` : '';
+  return `<span class="ev-avatar ev-avatar-ini">${esc(iniciais || '?')}${img}</span>`;
+}
+
 function membroAvatarHTML(mb) {
-  return mb.avatar
-    ? `<img src="${esc(mb.avatar)}" class="ev-avatar" alt="" />`
-    : `<span class="ev-avatar ev-avatar-ini">${esc(mb.iniciais || '?')}</span>`;
+  return avatarHTML(mb.iniciais, mb.avatar);
 }
 
 function avatarPorNomeHTML(nome) {
   const mb = boardMembros.find(x => x.nome === nome);
   if (mb) return membroAvatarHTML(mb);
-  return `<span class="ev-avatar ev-avatar-ini">${esc((nome.trim()[0] || '?').toUpperCase())}</span>`;
+  return avatarHTML((nome.trim()[0] || '?').toUpperCase(), null);
 }
 
 function eventoUtilizadoresHTML(utilizadores) {
@@ -1528,9 +1533,9 @@ async function renderEventosTab() {
     todosEventos = evs;
     boardMembros = (board.members || []).map(m => {
       const nome = m.fullName || m.username || m.id;
-      let avatar = null;
-      if (m.avatarUrl) avatar = m.avatarUrl + '/30.png';
-      else if (m.avatar) avatar = `https://trello-members.s3.amazonaws.com/${m.id}/${m.avatar}/30.png`;
+      let base = m.avatarUrl || '';
+      if (!base && m.avatar) base = /^https?:/.test(m.avatar) ? m.avatar : `https://trello-members.s3.amazonaws.com/${m.id}/${m.avatar}`;
+      const avatar = base ? base.replace(/\/+$/, '') + '/30.png' : null;
       const iniciais = nome.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
       return { id: m.id, nome, avatar, iniciais };
     });

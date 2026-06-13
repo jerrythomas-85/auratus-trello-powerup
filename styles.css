@@ -926,11 +926,11 @@ h3 {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  object-fit: cover;
   flex: 0 0 auto;
 }
 
 .ev-avatar-ini {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -938,6 +938,17 @@ h3 {
   color: #42526e;
   font-size: 9px;
   font-weight: 700;
+  overflow: hidden;
+}
+
+.ev-avatar-img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .ev-users {
