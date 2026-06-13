@@ -1492,6 +1492,30 @@ function parseDataEvento(s) {
   return isNaN(d.getTime()) ? null : d;
 }
 
+function evTipoOptionsHTML(sel) {
+  const tipos = ['reunião', 'Sessão fotográfica', 'Aplicação', 'outro'];
+  const todos = (sel && !tipos.includes(sel)) ? [sel, ...tipos] : tipos;
+  return todos.map(tp => `<option value="${esc(tp)}"${tp === sel ? ' selected' : ''}>${esc(tp)}</option>`).join('');
+}
+
+function membroAvatarHTML(mb) {
+  return mb.avatar
+    ? `<img src="${esc(mb.avatar)}" class="ev-avatar" alt="" />`
+    : `<span class="ev-avatar ev-avatar-ini">${esc(mb.iniciais || '?')}</span>`;
+}
+
+function avatarPorNomeHTML(nome) {
+  const mb = boardMembros.find(x => x.nome === nome);
+  if (mb) return membroAvatarHTML(mb);
+  return `<span class="ev-avatar ev-avatar-ini">${esc((nome.trim()[0] || '?').toUpperCase())}</span>`;
+}
+
+function eventoUtilizadoresHTML(utilizadores) {
+  const nomes = (utilizadores || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (!nomes.length) return '';
+  return `<span class="evento-users">${nomes.map(n => `<span class="ev-user-chip">${avatarPorNomeHTML(n)}${esc(n)}</span>`).join('')}</span>`;
+}
+
 async function renderEventosTab() {
   if (todosEventos !== null) return; // lazy: carrega uma vez
   const panel = document.getElementById('tab-eventos');
@@ -1502,7 +1526,14 @@ async function renderEventosTab() {
       t.board('members').catch(() => ({ members: [] }))
     ]);
     todosEventos = evs;
-    boardMembros = (board.members || []).map(m => ({ id: m.id, nome: m.fullName || m.username || m.id }));
+    boardMembros = (board.members || []).map(m => {
+      const nome = m.fullName || m.username || m.id;
+      let avatar = null;
+      if (m.avatarUrl) avatar = m.avatarUrl + '/30.png';
+      else if (m.avatar) avatar = `https://trello-members.s3.amazonaws.com/${m.id}/${m.avatar}/30.png`;
+      const iniciais = nome.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+      return { id: m.id, nome, avatar, iniciais };
+    });
   } catch (err) {
     panel.innerHTML = `<p class="empty">Erro ao carregar eventos: ${esc(err.message)}</p>`;
     return;
@@ -1571,7 +1602,7 @@ function eventoItemHTML(e) {
       <div class="evento-info">
         <strong>${esc(e.tipo) || '—'} · ${esc(empresaNome)}</strong>
         ${e.descricao ? `<span>${esc(e.descricao)}</span>` : ''}
-        ${e.utilizadores ? `<span class="evento-users">👤 ${esc(e.utilizadores)}</span>` : ''}
+        ${eventoUtilizadoresHTML(e.utilizadores)}
       </div>
       <div class="evento-acoes">
         <button class="btn-icon evento-editar" title="Editar">✏️</button>
@@ -1605,7 +1636,7 @@ function eventoForm(evento) {
         <div class="form-group"><label>Tipo *</label>
           <select id="ev-tipo">
             <option value="">— Selecionar —</option>
-            ${['reunião', 'sessão', 'outro'].map(tp => `<option value="${tp}"${editar && evento.tipo === tp ? ' selected' : ''}>${tp}</option>`).join('')}
+            ${evTipoOptionsHTML(editar ? evento.tipo : '')}
           </select>
         </div>
         <div class="form-group"><label>Data *</label><input type="date" id="ev-data" value="${editar ? esc(evento.data) : ''}" /></div>
@@ -1615,7 +1646,7 @@ function eventoForm(evento) {
         <label>Utilizadores da equipa</label>
         <div class="ev-users">
           ${boardMembros.length
-            ? boardMembros.map(mb => `<label class="ev-user"><input type="checkbox" value="${esc(mb.nome)}" ${usersSel.includes(mb.nome) ? 'checked' : ''} /> ${esc(mb.nome)}</label>`).join('')
+            ? boardMembros.map(mb => `<label class="ev-user"><input type="checkbox" value="${esc(mb.nome)}" ${usersSel.includes(mb.nome) ? 'checked' : ''} /> ${membroAvatarHTML(mb)} ${esc(mb.nome)}</label>`).join('')
             : '<span class="hint">Sem membros no board.</span>'}
         </div>
       </div>
