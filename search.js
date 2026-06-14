@@ -246,21 +246,32 @@ function lerPessoaForm() {
   };
 }
 
+// Empresas associadas a uma pessoa (ligações PESSOAS_EMPRESAS + empresa principal).
+function empresaIdsDaPessoa(pessoaId) {
+  const p = dados.pessoas.find(x => x.pessoa_id === pessoaId);
+  const ids = new Set(dados.pessoaEmpresas.filter(pe => pe.pessoa_id === pessoaId).map(pe => pe.empresa_id));
+  if (p && p.empresa_id) ids.add(p.empresa_id);
+  return [...ids].filter(Boolean);
+}
+
 function editarPessoaForm(pessoaId) {
   const pessoa = dados.pessoas.find(p => p.pessoa_id === pessoaId);
   if (!pessoa) return;
+  assocSel.empresas = { existentes: new Set(empresaIdsDaPessoa(pessoaId)), novas: [] };
   const detalhe = document.getElementById('pessoa-detalhe');
   detalhe.innerHTML = `
     <div class="section">
       <h2>Editar pessoa</h2>
       ${pessoaCamposHTML(pessoa)}
       <span class="field-error-msg" id="ed-p-aviso"></span>
-      <div class="form-actions">
-        <button id="ed-p-cancelar" class="btn-secondary">Cancelar</button>
-        <button id="ed-p-guardar" class="btn-primary">Guardar</button>
-      </div>
+    </div>
+    ${assocWidgetHTML('empresas', 'Empresas associadas * (pelo menos uma)', 'Pesquisar empresa...')}
+    <div class="form-actions">
+      <button id="ed-p-cancelar" class="btn-secondary">Cancelar</button>
+      <button id="ed-p-guardar" class="btn-primary">Guardar</button>
     </div>
   `;
+  wireAssocWidget('empresas');
   document.getElementById('ed-p-cancelar').addEventListener('click', () => mostrarDetalhePessoa(pessoaId));
   document.getElementById('ed-p-guardar').addEventListener('click', () => guardarPessoa(pessoaId));
 }
@@ -271,9 +282,40 @@ async function guardarPessoa(pessoaId) {
     document.getElementById('ed-p-aviso').textContent = 'O nome é obrigatório.';
     return;
   }
+  if (!assocSel.empresas.existentes.size && !assocSel.empresas.novas.length) {
+    document.getElementById('ed-p-aviso').textContent = 'Associa pelo menos uma empresa.';
+    return;
+  }
   const detalhe = document.getElementById('pessoa-detalhe');
   detalhe.innerHTML = `<p class="empty">A guardar...</p>`;
   try {
+    // Criar empresas novas (inline) e juntar ao conjunto final.
+    const novasIds = [];
+    for (const n of assocSel.empresas.novas) {
+      const empresa_id = await SheetsAPI.createEmpresa(token, n.dados);
+      dados.empresas.push({ empresa_id, ...n.dados });
+      novasIds.push(empresa_id);
+    }
+    const finalIds = [...assocSel.empresas.existentes, ...novasIds];
+
+    // Sincronizar as ligações pessoa-empresa.
+    const joinAtual = dados.pessoaEmpresas.filter(pe => pe.pessoa_id === pessoaId).map(pe => pe.empresa_id);
+    const aAdicionar = finalIds.filter(id => !joinAtual.includes(id));
+    const aRemover = joinAtual.filter(id => !finalIds.includes(id));
+    for (const eid of aAdicionar) {
+      try { await SheetsAPI.addPessoaEmpresa(token, pessoaId, eid); dados.pessoaEmpresas.push({ pessoa_id: pessoaId, empresa_id: eid }); } catch (e) {}
+    }
+    for (const eid of aRemover) {
+      try { await SheetsAPI.removePessoaEmpresa(token, pessoaId, eid); } catch (e) {}
+    }
+    if (aRemover.length) {
+      dados.pessoaEmpresas = dados.pessoaEmpresas.filter(pe => !(pe.pessoa_id === pessoaId && aRemover.includes(pe.empresa_id)));
+    }
+
+    // Empresa principal: manter se ainda associada, senão a primeira do conjunto.
+    const antiga = dados.pessoas.find(p => p.pessoa_id === pessoaId) || {};
+    atualizada.empresa_id = finalIds.includes(antiga.empresa_id) ? antiga.empresa_id : (finalIds[0] || '');
+
     await SheetsAPI.updatePessoa(token, pessoaId, atualizada);
     const idx = dados.pessoas.findIndex(p => p.pessoa_id === pessoaId);
     if (idx !== -1) dados.pessoas[idx] = { ...dados.pessoas[idx], ...atualizada };

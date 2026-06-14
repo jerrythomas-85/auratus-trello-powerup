@@ -117,7 +117,10 @@ const SheetsAPI = {
     if (!data.values) return;
     const rowIndex = data.values.findIndex(r => r[0] === pessoa_id);
     if (rowIndex === -1) return;
-    const empresa_id = data.values[rowIndex][1] || '';
+    // Usa a empresa principal passada; se não vier, preserva a existente.
+    const empresa_id = (pessoa.empresa_id !== undefined && pessoa.empresa_id !== null)
+      ? pessoa.empresa_id
+      : (data.values[rowIndex][1] || '');
     const updateRange = `${AURATUS_CONFIG.SHEETS.PESSOAS}!A${rowIndex + 2}:H${rowIndex + 2}`;
     const updateURL = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${updateRange}?valueInputOption=RAW`;
     await fetch(updateURL, {
@@ -237,6 +240,17 @@ const SheetsAPI = {
     const existe = todas.some(pe => pe.pessoa_id === pessoa_id && pe.empresa_id === empresa_id);
     if (existe) return;
     await this._appendRow(token, AURATUS_CONFIG.SHEETS.PESSOAS_EMPRESAS, [pessoa_id, empresa_id]);
+  },
+
+  async removePessoaEmpresa(token, pessoa_id, empresa_id) {
+    const rows = await this._fetchValues(token, `${AURATUS_CONFIG.SHEETS.PESSOAS_EMPRESAS}!A2:B`);
+    const deletions = [];
+    rows.forEach((r, i) => {
+      if (r[0] === pessoa_id && r[1] === empresa_id) {
+        deletions.push({ title: AURATUS_CONFIG.SHEETS.PESSOAS_EMPRESAS, rowIndex: i });
+      }
+    });
+    if (deletions.length) await this._deleteRows(token, deletions);
   },
 
   // ---- AVENCAS (ARD) ----
