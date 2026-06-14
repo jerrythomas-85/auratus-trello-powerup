@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderPessoasTab();
   renderListaTab();
   renderImportarTab();
+  renderEventosTab();
 });
 
 function setupTabs() {
