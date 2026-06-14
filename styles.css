@@ -829,10 +829,10 @@ h3 {
   border-left: 4px solid transparent;
 }
 
-.ev-cor-reuniao { border-left-color: #eb5a46; }
-.ev-cor-sessao { border-left-color: #f2d600; }
-.ev-cor-aplicacao { border-left-color: #61bd4f; }
-.ev-cor-outro { border-left-color: #0079bf; }
+.ev-cor-reuniao { border-left-color: #eb5a46; background: #ffebe6; }
+.ev-cor-sessao { border-left-color: #f2d600; background: #fffae6; }
+.ev-cor-aplicacao { border-left-color: #61bd4f; background: #e3fcef; }
+.ev-cor-outro { border-left-color: #0079bf; background: #deebff; }
 
 .evento-info {
   display: flex;
