@@ -679,7 +679,7 @@ async function renderArdTab() {
         <select id="f-av-estado">
           <option value="">Todos</option>
           <option value="ativa">Ativa</option>
-          <option value="inativa">Inativa</option>
+          <option value="terminada">Terminada</option>
         </select>
       </div>
       <div class="filtro-grupo">
@@ -695,16 +695,16 @@ async function renderArdTab() {
         </select>
       </div>
     </div>
+    <p class="hint">As avenças vêm da Copa e só ali se criam ou alteram. Clica numa linha para abrir a ficha do cliente na Copa.</p>
     <div class="lista-acoes">
       <span id="av-contagem" class="hint"></span>
-      <button id="btn-nova-avenca" class="btn-primary btn-novo">+ Nova avença</button>
+      <a class="btn-secondary btn-novo" href="${AURATUS_CONFIG.COPA_URL}/clientes" target="_blank" rel="noreferrer" style="text-align:center;text-decoration:none;">Gerir na Copa ↗</a>
     </div>
     <div id="av-tabela"></div>
     <div id="av-detalhe"></div>
   `;
   document.getElementById('f-av-estado').addEventListener('change', renderArdTabela);
   document.getElementById('f-av-tipo').addEventListener('change', renderArdTabela);
-  document.getElementById('btn-nova-avenca').addEventListener('click', criarAvencaForm);
   renderArdTabela();
 }
 
@@ -749,7 +749,7 @@ function renderArdTabela() {
   tabela.querySelectorAll('tr[data-avenca-id]').forEach(tr => {
     tr.addEventListener('click', () => {
       const a = avencas.find(x => x.avenca_id === tr.dataset.avencaId);
-      if (a) avencaForm(a);
+      if (a) window.open(`${AURATUS_CONFIG.COPA_URL}/clientes/${encodeURIComponent(a.empresa_id)}`, '_blank', 'noopener');
     });
   });
 }
@@ -1855,7 +1855,7 @@ function fichaEmpresaHTML(empresa) {
     campoHTML('Setor', esc(empresa.setor) || '—')
   ];
   if (empresa.localizacao) campos.push(campoHTML('Localidade', esc(empresa.localizacao)));
-  if (empresa.setor === 'Restaurante') campos.push(campoHTML('Plano', esc(empresa.plano) || '—'));
+  if (empresa.setor === 'Restaurante' || empresa.plano) campos.push(campoHTML('Plano', esc(empresa.plano) || 'Sem avença'));
   if (empresa.data_inicio) campos.push(campoHTML('Data de Início', esc(empresa.data_inicio)));
   if (empresa.email) campos.push(campoHTML('Email', esc(empresa.email)));
   if (empresa.telefone) campos.push(campoHTML('Telefone', esc(empresa.telefone)));
@@ -2263,19 +2263,6 @@ function empresaCamposHTML(empresa) {
             <option value="Outro" ${empresa.setor === 'Outro' ? 'selected' : ''}>Outro</option>
           </select>
         </div>
-        <div id="ed-form-restaurante" style="display:${empresa.setor === 'Restaurante' ? 'block' : 'none'};">
-          <div class="form-group"><label>Plano</label>
-            <select id="ed-plano">
-              <option value="Sem Avença" ${empresa.plano === 'Sem Avença' ? 'selected' : ''}>Sem Avença</option>
-              <option value="ARD" ${empresa.plano === 'ARD' ? 'selected' : ''}>ARD</option>
-              <option value="ARD Pro" ${empresa.plano === 'ARD Pro' ? 'selected' : ''}>ARD Pro</option>
-              <option value="ARD Premium" ${empresa.plano === 'ARD Premium' ? 'selected' : ''}>ARD Premium</option>
-            </select>
-          </div>
-          <div id="ed-form-data" style="display:${(empresa.plano && empresa.plano !== 'Sem Avença') ? 'block' : 'none'};">
-            <div class="form-group"><label>Data de Início</label><input type="date" id="ed-data-inicio" value="${esc(empresa.data_inicio || '')}" /></div>
-          </div>
-        </div>
         <div class="form-group"><label>Email</label><input type="email" id="ed-email" value="${esc(empresa.email || '')}" /></div>
         <div class="form-group"><label>Telefone</label><input type="text" id="ed-telefone" value="${esc(empresa.telefone || '')}" /></div>
       </div>
@@ -2289,12 +2276,7 @@ function empresaCamposHTML(empresa) {
 }
 
 function wireEmpresaCampos() {
-  document.getElementById('ed-setor').addEventListener('change', function() {
-    document.getElementById('ed-form-restaurante').style.display = this.value === 'Restaurante' ? 'block' : 'none';
-  });
-  document.getElementById('ed-plano').addEventListener('change', function() {
-    document.getElementById('ed-form-data').style.display = this.value !== 'Sem Avença' ? 'block' : 'none';
-  });
+  // O plano deixou de se escolher aqui: vem da avença, que se cria na Copa (ARD).
   document.querySelectorAll('#ed-cor-palette .cor-swatch').forEach(sw => {
     sw.addEventListener('click', () => {
       document.querySelectorAll('#ed-cor-palette .cor-swatch').forEach(s => s.classList.remove('selecionado'));
@@ -2305,14 +2287,12 @@ function wireEmpresaCampos() {
 
 function lerEmpresaForm() {
   const setor = val('ed-setor');
-  const plano = setor === 'Restaurante' ? val('ed-plano') : '';
-  const data_inicio = (plano && plano !== 'Sem Avença') ? val('ed-data-inicio') : '';
   const cor = (document.querySelector('#ed-cor-palette .cor-swatch.selecionado') || { dataset: {} }).dataset.cor || 'blue';
   return {
     nome: val('ed-nome').trim(),
     distrito: val('ed-distrito'),
     localizacao: val('ed-localizacao').trim(),
-    setor, plano, data_inicio,
+    setor,
     email: val('ed-email').trim(),
     telefone: val('ed-telefone').trim(),
     notas: val('ed-notas').trim(),

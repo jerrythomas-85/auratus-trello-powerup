@@ -1,21 +1,10 @@
 const AURATUS_CONFIG = {
-  // Google OAuth 2.0
-  CLIENT_ID: '158811393234-gv7tfjs8j122h1q3dg919q6dikupe2gk.apps.googleusercontent.com',
-  REDIRECT_URI: 'https://auratus-trello-powerup.pages.dev/auth-callback.html',
-  SCOPES: [
-    'https://www.googleapis.com/auth/spreadsheets'
-  ].join(' '),
-
-  // Google Sheets
-  SHEET_ID: '1nS-AnJ4xvAqCQhYED4X1fc5dXgeZlT9_z6Xmji6c-9E',
-  SHEETS: {
-    EMPRESAS: 'EMPRESAS',
-    PESSOAS: 'PESSOAS',
-    CARDS_CRM: 'CARDS_CRM',
-    PESSOAS_EMPRESAS: 'PESSOAS_EMPRESAS',
-    AVENCAS: 'AVENCAS',
-    EVENTOS: 'EVENTOS'
-  },
+  // Copa (plataforma interna da Auratus): desde 24 nov 2026 o CRM grava na Copa em vez da folha
+  // TRELLO_AI_WORKSPACE. A chave é a publicável do Supabase (pública por natureza): as permissões
+  // vivem na base de dados (RLS) e cada pessoa entra com a sua conta da Copa (email + código + 2FA).
+  COPA_URL: 'https://copa.auratus.pt',
+  SUPABASE_URL: 'https://relsouxxqvmfpngsukcj.supabase.co',
+  SUPABASE_KEY: 'sb_publishable_Kj0ak9Zo7vwB8m2OrVPe7w_iLeg6qbU',
 
   // Trello
   TRELLO_API_KEY: 'd8bf5f0feecb84127550bcccbd6272bb'

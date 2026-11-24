@@ -1,544 +1,351 @@
 // ============================================================
-// SHEETS.JS — Funções de acesso à Google Sheets API
+// SHEETS.JS — Dados do CRM, agora na Copa (desde 24 nov 2026)
 // ============================================================
+// O nome (SheetsAPI) e as funções ficaram iguais para o resto do Power-Up não mudar, mas já não há
+// folha: tudo se lê e grava na Copa (Supabase), com a sessão de quem está a usar (Auth.supabase).
+// As regras de acesso são as da Copa: toda a equipa vê, cria e altera empresas, pessoas, ligações,
+// cartões e eventos; apagar empresas e pessoas só administradores; apagar um evento, quem o criou ou um
+// administrador; num cliente ARD, o nome e as notas só um administrador muda; um cliente ARD nunca se apaga.
+// As avenças gerem-se na Copa (ARD): aqui só se leem.
+// Ids: os da Copa (uuid). O parâmetro "token" ficou só por compatibilidade.
+//
+// Correspondência com a Copa: empresa = clientes; pessoa = contactos (empresa_id = empresa principal);
+// pessoa ↔ empresa = contactos_empresas; associação de cartão = crm_cartoes; evento = crm_eventos.
 
 const SheetsAPI = {
 
-  baseURL: 'https://sheets.googleapis.com/v4/spreadsheets',
+  get db() { return Auth.supabase; },
 
-  headers(token) {
-    return {
-      'Authorization': 'Bearer ' + token,
-      'Content-Type': 'application/json'
-    };
+  // Traduz os erros da base de dados para português simples.
+  _erro(error, acao) {
+    const msg = (error && error.message) || '';
+    if (/row-level security|permission denied|JWT|not authorized/i.test(msg)) {
+      return new Error(`Sem permissão para ${acao}. Se a sessão expirou, fecha e volta a abrir o CRM.`);
+    }
+    return new Error(msg || `Não foi possível ${acao}.`);
+  },
+
+  async _ler(pedido, acao) {
+    const { data, error } = await pedido;
+    if (error) throw this._erro(error, acao);
+    return data || [];
+  },
+
+  _v(x) { const s = (x === undefined || x === null) ? '' : String(x).trim(); return s || null; },
+
+  _normalizar(t) {
+    return String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  },
+
+  _hoje() {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Lisbon' }).format(new Date());
+  },
+
+  // A avença que conta: a ativa em vigor hoje; senão a ativa mais recente (igual a avencaAtual na Copa).
+  _avencaAtual(avencas) {
+    const hoje = this._hoje();
+    const ordenadas = (avencas || []).slice().sort((a, b) => String(b.data_inicio).localeCompare(String(a.data_inicio)));
+    return ordenadas.find(a => a.estado === 'ativa' && a.data_inicio <= hoje) ||
+           ordenadas.find(a => a.estado === 'ativa') || null;
   },
 
   // ---- EMPRESAS ----
 
+  _mapEmpresa(c) {
+    const av = this._avencaAtual(c.avencas);
+    return {
+      empresa_id: c.id,
+      nome: c.nome || '',
+      localizacao: c.localidade || '',
+      setor: c.setor || '',
+      plano: av ? av.plano : '',          // só leitura: vem da avença na Copa
+      data_inicio: av ? av.data_inicio : '',
+      email: c.email || '',
+      telefone: c.telefone || '',
+      notas: c.notas || '',
+      cor: c.cor || '',
+      distrito: c.distrito || ''
+    };
+  },
+
   async getEmpresas(token) {
-    const range = `${AURATUS_CONFIG.SHEETS.EMPRESAS}!A2:K`;
-    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
-    const res = await fetch(url, { headers: this.headers(token) });
-    const data = await res.json();
-    if (!data.values) return [];
-    return data.values.map(row => ({
-      empresa_id: row[0] || '',
-      nome: row[1] || '',
-      localizacao: row[2] || '',
-      setor: row[3] || '',
-      plano: row[4] || '',
-      data_inicio: row[5] || '',
-      email: row[6] || '',
-      telefone: row[7] || '',
-      notas: row[8] || '',
-      cor: row[9] || '',
-      distrito: row[10] || ''
-    }));
+    const linhas = await this._ler(
+      this.db.from('clientes')
+        .select('id, nome, localidade, distrito, setor, email, telefone, notas, cor, avencas(plano, data_inicio, estado)')
+        .order('nome').range(0, 4999),
+      'ler as empresas');
+    return linhas.map(c => this._mapEmpresa(c));
+  },
+
+  _dadosEmpresa(empresa) {
+    const setor = ['Restaurante', 'Outro'].includes(empresa.setor) ? empresa.setor : null;
+    const cor = TRELLO_CORES.some(c => c.nome === empresa.cor) ? empresa.cor : null;
+    return {
+      localidade: this._v(empresa.localizacao),
+      distrito: this._v(empresa.distrito),
+      setor,
+      email: this._v(empresa.email),
+      telefone: this._v(empresa.telefone),
+      cor
+    };
   },
 
   async createEmpresa(token, empresa) {
-    const id = 'EMP_' + Date.now();
-    const row = [
-      id,
-      empresa.nome,
-      empresa.localizacao,
-      empresa.setor,
-      empresa.plano || '',
-      empresa.data_inicio || '',
-      empresa.email || '',
-      empresa.telefone || '',
-      empresa.notas || '',
-      empresa.cor || '',
-      empresa.distrito || ''
-    ];
-    await this._appendRow(token, AURATUS_CONFIG.SHEETS.EMPRESAS, row);
-    return id;
+    const nome = this._v(empresa.nome);
+    if (!nome) throw new Error('Escreve o nome da empresa.');
+    // Como na Copa: não se cria outra empresa com o mesmo nome (sem acentos nem maiúsculas).
+    const existentes = await this._ler(this.db.from('clientes').select('nome').range(0, 4999), 'ler as empresas');
+    const igual = existentes.find(c => this._normalizar(c.nome) === this._normalizar(nome));
+    if (igual) throw new Error(`Já existe a empresa "${igual.nome}". Escolhe-a na pesquisa em vez de criar outra.`);
+    const { data, error } = await this.db.from('clientes')
+      .insert({ nome, notas: this._v(empresa.notas), ...this._dadosEmpresa(empresa) })
+      .select('id').single();
+    if (error || !data) throw this._erro(error, 'criar a empresa');
+    return data.id;
   },
 
   async updateEmpresa(token, empresa_id, empresa) {
-    const range = `${AURATUS_CONFIG.SHEETS.EMPRESAS}!A2:K`;
-    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
-    const res = await fetch(url, { headers: this.headers(token) });
-    const data = await res.json();
-    if (!data.values) return;
-    const rowIndex = data.values.findIndex(r => r[0] === empresa_id);
-    if (rowIndex === -1) return;
-    const updateRange = `${AURATUS_CONFIG.SHEETS.EMPRESAS}!A${rowIndex + 2}:K${rowIndex + 2}`;
-    const updateURL = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${updateRange}?valueInputOption=RAW`;
-    await fetch(updateURL, {
-      method: 'PUT',
-      headers: this.headers(token),
-      body: JSON.stringify({
-        range: updateRange,
-        values: [[
-          empresa_id,
-          empresa.nome,
-          empresa.localizacao,
-          empresa.setor,
-          empresa.plano || '',
-          empresa.data_inicio || '',
-          empresa.email || '',
-          empresa.telefone || '',
-          empresa.notas || '',
-          empresa.cor || '',
-          empresa.distrito || ''
-        ]]
-      })
-    });
+    const dados = { nome: this._v(empresa.nome), notas: this._v(empresa.notas), ...this._dadosEmpresa(empresa) };
+    if (!dados.nome) throw new Error('Escreve o nome da empresa.');
+    const { data, error } = await this.db.from('clientes').update(dados).eq('id', empresa_id).select('id');
+    if (error) throw this._erro(error, 'guardar a empresa');
+    if (!data || !data.length) throw new Error('Não foi possível guardar a empresa.');
   },
 
   // ---- PESSOAS ----
 
-  async getPessoas(token, empresa_id = null) {
-    const range = `${AURATUS_CONFIG.SHEETS.PESSOAS}!A2:H`;
-    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
-    const res = await fetch(url, { headers: this.headers(token) });
-    const data = await res.json();
-    if (!data.values) return [];
-    const pessoas = data.values.map(row => ({
-      pessoa_id: row[0] || '',
-      empresa_id: row[1] || '',
-      nome: row[2] || '',
-      apelido: row[3] || '',
-      cargo: row[4] || '',
-      funcao: row[5] || '',
-      email: row[6] || '',
-      telemovel: row[7] || ''
-    }));
-    if (empresa_id) return pessoas.filter(p => p.empresa_id === empresa_id);
-    return pessoas;
-  },
-
-  async updatePessoa(token, pessoa_id, pessoa) {
-    const range = `${AURATUS_CONFIG.SHEETS.PESSOAS}!A2:H`;
-    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
-    const res = await fetch(url, { headers: this.headers(token) });
-    const data = await res.json();
-    if (!data.values) return;
-    const rowIndex = data.values.findIndex(r => r[0] === pessoa_id);
-    if (rowIndex === -1) return;
-    // Usa a empresa principal passada; se não vier, preserva a existente.
-    const empresa_id = (pessoa.empresa_id !== undefined && pessoa.empresa_id !== null)
-      ? pessoa.empresa_id
-      : (data.values[rowIndex][1] || '');
-    const updateRange = `${AURATUS_CONFIG.SHEETS.PESSOAS}!A${rowIndex + 2}:H${rowIndex + 2}`;
-    const updateURL = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${updateRange}?valueInputOption=RAW`;
-    await fetch(updateURL, {
-      method: 'PUT',
-      headers: this.headers(token),
-      body: JSON.stringify({
-        range: updateRange,
-        values: [[
-          pessoa_id,
-          empresa_id,
-          pessoa.nome,
-          pessoa.apelido || '',
-          pessoa.cargo || '',
-          pessoa.funcao || '',
-          pessoa.email || '',
-          pessoa.telemovel || ''
-        ]]
-      })
-    });
-  },
-
-  async createPessoa(token, pessoa) {
-    const id = 'PES_' + Date.now();
-    const row = [
-      id,
-      pessoa.empresa_id,
-      pessoa.nome,
-      pessoa.apelido,
-      pessoa.cargo,
-      pessoa.funcao || '',
-      pessoa.email || '',
-      pessoa.telemovel || ''
-    ];
-    await this._appendRow(token, AURATUS_CONFIG.SHEETS.PESSOAS, row);
-    return id;
-  },
-
-  // ---- CARDS CRM ----
-
-  async getAllCardAssociacoes(token) {
-    const range = `${AURATUS_CONFIG.SHEETS.CARDS_CRM}!A2:D`;
-    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
-    const res = await fetch(url, { headers: this.headers(token) });
-    const data = await res.json();
-    if (!data.values) return [];
-    return data.values
-      .filter(r => r[0])
-      .map(r => ({ card_id: r[0], empresa_id: r[1] || '', pessoa_id: r[2] || '', data_associacao: r[3] || '' }));
-  },
-
-  async getCardAssociacao(token, card_id) {
-    const range = `${AURATUS_CONFIG.SHEETS.CARDS_CRM}!A2:D`;
-    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
-    const res = await fetch(url, { headers: this.headers(token) });
-    const data = await res.json();
-    if (!data.values) return null;
-    const row = data.values.find(r => r[0] === card_id);
-    if (!row) return null;
+  _mapPessoa(k) {
     return {
-      card_id: row[0],
-      empresa_id: row[1],
-      pessoa_id: row[2],
-      data_associacao: row[3]
+      pessoa_id: k.id,
+      empresa_id: k.cliente_id || '',
+      nome: k.nome || '',
+      apelido: k.apelido || '',
+      cargo: k.cargo || '',
+      funcao: k.funcao || '',
+      email: k.email || '',
+      telemovel: k.telemovel || ''
     };
   },
 
-  async saveCardAssociacao(token, card_id, empresa_id, pessoa_id) {
-    const existente = await this.getCardAssociacao(token, card_id);
-    if (existente) {
-      await this._updateCardAssociacao(token, card_id, empresa_id, pessoa_id);
-    } else {
-      const row = [card_id, empresa_id, pessoa_id, new Date().toISOString()];
-      await this._appendRow(token, AURATUS_CONFIG.SHEETS.CARDS_CRM, row);
-    }
+  async getPessoas(token, empresa_id = null) {
+    let pedido = this.db.from('contactos')
+      .select('id, cliente_id, nome, apelido, cargo, funcao, email, telemovel')
+      .order('nome').range(0, 9999);
+    if (empresa_id) pedido = pedido.eq('cliente_id', empresa_id);
+    const linhas = await this._ler(pedido, 'ler as pessoas');
+    return linhas.map(k => this._mapPessoa(k));
   },
 
-  async _updateCardAssociacao(token, card_id, empresa_id, pessoa_id) {
-    const range = `${AURATUS_CONFIG.SHEETS.CARDS_CRM}!A2:D`;
-    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
-    const res = await fetch(url, { headers: this.headers(token) });
-    const data = await res.json();
-    if (!data.values) return;
-    const rowIndex = data.values.findIndex(r => r[0] === card_id);
-    if (rowIndex === -1) return;
-    const updateRange = `${AURATUS_CONFIG.SHEETS.CARDS_CRM}!A${rowIndex + 2}:D${rowIndex + 2}`;
-    const updateURL = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${updateRange}?valueInputOption=RAW`;
-    await fetch(updateURL, {
-      method: 'PUT',
-      headers: this.headers(token),
-      body: JSON.stringify({
-        range: updateRange,
-        values: [[card_id, empresa_id, pessoa_id, new Date().toISOString()]]
-      })
-    });
+  _dadosPessoa(pessoa) {
+    return {
+      nome: this._v(pessoa.nome),
+      apelido: this._v(pessoa.apelido),
+      cargo: ['Gerência', 'Colaborador'].includes(pessoa.cargo) ? pessoa.cargo : null,
+      funcao: this._v(pessoa.funcao),
+      email: this._v(pessoa.email),
+      telemovel: this._v(pessoa.telemovel)
+    };
   },
 
-  // ---- PESSOAS_EMPRESAS (relação muitos-para-muitos) ----
+  async updatePessoa(token, pessoa_id, pessoa) {
+    const dados = this._dadosPessoa(pessoa);
+    if (!dados.nome) throw new Error('Escreve o nome da pessoa.');
+    // Empresa principal: a que vier; se não vier, fica a que está (a ligação nasce sozinha na Copa).
+    if (pessoa.empresa_id) dados.cliente_id = pessoa.empresa_id;
+    const { data, error } = await this.db.from('contactos').update(dados).eq('id', pessoa_id).select('id');
+    if (error) throw this._erro(error, 'guardar a pessoa');
+    if (!data || !data.length) throw new Error('Não foi possível guardar a pessoa.');
+  },
+
+  async createPessoa(token, pessoa) {
+    const dados = this._dadosPessoa(pessoa);
+    if (!dados.nome) throw new Error('Escreve o nome da pessoa.');
+    if (!pessoa.empresa_id) throw new Error('Escolhe a empresa da pessoa.');
+    const { data, error } = await this.db.from('contactos')
+      .insert({ ...dados, cliente_id: pessoa.empresa_id })
+      .select('id').single();
+    if (error || !data) throw this._erro(error, 'criar a pessoa');
+    return data.id;
+  },
+
+  // ---- CARTÕES ASSOCIADOS ----
+
+  _mapCartao(r) {
+    return { card_id: r.cartao_id, empresa_id: r.cliente_id || '', pessoa_id: r.contacto_id || '', data_associacao: r.associado_em || '' };
+  },
+
+  async getAllCardAssociacoes(token) {
+    const linhas = await this._ler(
+      this.db.from('crm_cartoes').select('cartao_id, cliente_id, contacto_id, associado_em').range(0, 9999),
+      'ler as associações dos cartões');
+    return linhas.map(r => this._mapCartao(r));
+  },
+
+  async getCardAssociacao(token, card_id) {
+    const { data, error } = await this.db.from('crm_cartoes')
+      .select('cartao_id, cliente_id, contacto_id, associado_em').eq('cartao_id', card_id).maybeSingle();
+    if (error) throw this._erro(error, 'ler a associação do cartão');
+    return data ? this._mapCartao(data) : null;
+  },
+
+  // nome_cartao (opcional): o nome do cartão no Trello, para a Copa o mostrar logo (senão lê-o de madrugada).
+  async saveCardAssociacao(token, card_id, empresa_id, pessoa_id, nome_cartao) {
+    const linha = {
+      cartao_id: card_id,
+      cliente_id: empresa_id,
+      contacto_id: pessoa_id || null,
+      associado_em: new Date().toISOString()
+    };
+    if (nome_cartao) linha.nome = nome_cartao;
+    const { error } = await this.db.from('crm_cartoes').upsert(linha, { onConflict: 'cartao_id' });
+    if (error) throw this._erro(error, 'associar o cartão');
+  },
+
+  async deleteCardAssociacao(token, card_id) {
+    const { error } = await this.db.from('crm_cartoes').delete().eq('cartao_id', card_id);
+    if (error) throw this._erro(error, 'desassociar o cartão');
+  },
+
+  // ---- PESSOA ↔ EMPRESA ----
 
   async getAllPessoaEmpresas(token) {
-    const range = `${AURATUS_CONFIG.SHEETS.PESSOAS_EMPRESAS}!A2:B`;
-    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
-    const res = await fetch(url, { headers: this.headers(token) });
-    const data = await res.json();
-    if (!data.values) return [];
-    return data.values
-      .filter(r => r[0])
-      .map(r => ({ pessoa_id: r[0], empresa_id: r[1] || '' }));
+    const linhas = await this._ler(
+      this.db.from('contactos_empresas').select('contacto_id, cliente_id').range(0, 9999),
+      'ler as ligações entre pessoas e empresas');
+    return linhas.map(r => ({ pessoa_id: r.contacto_id, empresa_id: r.cliente_id }));
   },
 
   async getPessoaEmpresas(token, pessoa_id) {
-    const todas = await this.getAllPessoaEmpresas(token);
-    return todas.filter(pe => pe.pessoa_id === pessoa_id).map(pe => pe.empresa_id);
+    const linhas = await this._ler(
+      this.db.from('contactos_empresas').select('cliente_id').eq('contacto_id', pessoa_id),
+      'ler as empresas da pessoa');
+    return linhas.map(r => r.cliente_id);
   },
 
   async addPessoaEmpresa(token, pessoa_id, empresa_id) {
-    const todas = await this.getAllPessoaEmpresas(token);
-    const existe = todas.some(pe => pe.pessoa_id === pessoa_id && pe.empresa_id === empresa_id);
-    if (existe) return;
-    await this._appendRow(token, AURATUS_CONFIG.SHEETS.PESSOAS_EMPRESAS, [pessoa_id, empresa_id]);
+    const { error } = await this.db.from('contactos_empresas')
+      .upsert({ contacto_id: pessoa_id, cliente_id: empresa_id }, { onConflict: 'contacto_id,cliente_id', ignoreDuplicates: true });
+    if (error) throw this._erro(error, 'ligar a pessoa à empresa');
   },
 
+  // Uma pessoa nunca fica sem empresa: se esta for a principal, passa a principal para outra antes;
+  // se for a única, não se desliga (para a tirar de vez, apaga-se a pessoa).
   async removePessoaEmpresa(token, pessoa_id, empresa_id) {
-    const rows = await this._fetchValues(token, `${AURATUS_CONFIG.SHEETS.PESSOAS_EMPRESAS}!A2:B`);
-    const deletions = [];
-    rows.forEach((r, i) => {
-      if (r[0] === pessoa_id && r[1] === empresa_id) {
-        deletions.push({ title: AURATUS_CONFIG.SHEETS.PESSOAS_EMPRESAS, rowIndex: i });
-      }
-    });
-    if (deletions.length) await this._deleteRows(token, deletions);
+    const [{ data: pessoa }, { data: ligacoes }] = await Promise.all([
+      this.db.from('contactos').select('cliente_id').eq('id', pessoa_id).maybeSingle(),
+      this.db.from('contactos_empresas').select('cliente_id').eq('contacto_id', pessoa_id)
+    ]);
+    const outras = (ligacoes || []).map(l => l.cliente_id).filter(id => id !== empresa_id);
+    if (!outras.length) return;
+    if (pessoa && pessoa.cliente_id === empresa_id) {
+      const { error } = await this.db.from('contactos').update({ cliente_id: outras[0] }).eq('id', pessoa_id);
+      if (error) throw this._erro(error, 'mudar a empresa principal');
+    }
+    const { error } = await this.db.from('contactos_empresas').delete().eq('contacto_id', pessoa_id).eq('cliente_id', empresa_id);
+    if (error) throw this._erro(error, 'desligar a pessoa da empresa');
   },
 
-  // ---- AVENCAS (ARD) ----
-  // Colunas A:K — AVENCA_ID, EMPRESA_ID, TIPO, VALOR, DATA_INICIO, DATA_FIM,
-  // RENOVA, ESTADO, NOTAS (notas do cliente), LINK_PASTA, CONTEMPLADO
+  // ---- AVENÇAS (só leitura: criam-se e alteram-se na Copa → ARD) ----
 
   async getAllAvencas(token) {
-    const range = `${AURATUS_CONFIG.SHEETS.AVENCAS}!A2:K`;
-    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
-    const res = await fetch(url, { headers: this.headers(token) });
-    const data = await res.json();
-    if (!data.values) return [];
-    return data.values
-      .filter(r => r[0])
-      .map(r => ({
-        avenca_id: r[0] || '',
-        empresa_id: r[1] || '',
-        tipo: r[2] || '',
-        valor: r[3] || '',
-        data_inicio: r[4] || '',
-        data_fim: r[5] || '',
-        renova: r[6] || '',
-        estado: r[7] || '',
-        notas: r[8] || '',
-        link_pasta: r[9] || '',
-        contemplado: r[10] || ''
-      }));
+    const linhas = await this._ler(
+      this.db.from('avencas')
+        .select('id, cliente_id, plano, valor, data_inicio, data_fim, renova, estado, contemplado, clientes(notas, link_pasta)')
+        .order('data_inicio', { ascending: false }).range(0, 4999),
+      'ler as avenças');
+    return linhas.map(a => ({
+      avenca_id: a.id,
+      empresa_id: a.cliente_id,
+      tipo: a.plano || '',
+      valor: a.valor == null ? '' : String(a.valor),
+      data_inicio: a.data_inicio || '',
+      data_fim: a.data_fim || '',
+      renova: a.renova ? 'SIM' : 'NÃO',
+      estado: a.estado || '',
+      notas: (a.clientes && a.clientes.notas) || '',
+      link_pasta: (a.clientes && a.clientes.link_pasta) || '',
+      contemplado: a.contemplado || ''
+    }));
   },
 
-  async addAvenca(token, avenca) {
-    const id = 'AV_' + Date.now();
-    const row = [
-      id,
-      avenca.empresa_id || '',
-      avenca.tipo || '',
-      avenca.valor || '',
-      avenca.data_inicio || '',
-      avenca.data_fim || '',
-      avenca.renova || 'SIM',
-      avenca.estado || 'ativa',
-      avenca.notas || '',
-      avenca.link_pasta || '',
-      avenca.contemplado || ''
-    ];
-    await this._appendRow(token, AURATUS_CONFIG.SHEETS.AVENCAS, row);
-    return id;
+  async addAvenca() {
+    throw new Error('As avenças criam-se na Copa (ARD → Novo cliente, ou "Criar avença" na empresa do CRM).');
   },
 
-  async updateAvenca(token, avenca_id, avenca) {
-    const range = `${AURATUS_CONFIG.SHEETS.AVENCAS}!A2:K`;
-    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
-    const res = await fetch(url, { headers: this.headers(token) });
-    const data = await res.json();
-    if (!data.values) return;
-    const rowIndex = data.values.findIndex(r => r[0] === avenca_id);
-    if (rowIndex === -1) return;
-    const updateRange = `${AURATUS_CONFIG.SHEETS.AVENCAS}!A${rowIndex + 2}:K${rowIndex + 2}`;
-    const updateURL = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${updateRange}?valueInputOption=RAW`;
-    await fetch(updateURL, {
-      method: 'PUT',
-      headers: this.headers(token),
-      body: JSON.stringify({
-        range: updateRange,
-        values: [[
-          avenca_id,
-          avenca.empresa_id || '',
-          avenca.tipo || '',
-          avenca.valor || '',
-          avenca.data_inicio || '',
-          avenca.data_fim || '',
-          avenca.renova || '',
-          avenca.estado || '',
-          avenca.notas || '',
-          avenca.link_pasta || '',
-          avenca.contemplado || ''
-        ]]
-      })
-    });
+  async updateAvenca() {
+    throw new Error('As avenças alteram-se na Copa (ARD → ficha do cliente).');
   },
 
   // ---- EVENTOS ----
-  // Colunas A:F — EVENTO_ID, EMPRESA_ID, TIPO, DATA, DESCRICAO, UTILIZADORES
-  // UTILIZADORES: nomes de membros da equipa separados por vírgula.
 
   _mapEvento(r) {
     return {
-      evento_id: r[0] || '',
-      empresa_id: r[1] || '',
-      tipo: r[2] || '',
-      data: r[3] || '',
-      descricao: r[4] || '',
-      utilizadores: r[5] || ''
+      evento_id: r.id,
+      empresa_id: r.cliente_id || '',
+      tipo: r.tipo || '',
+      data: r.dia || '',
+      descricao: r.descricao || '',
+      utilizadores: r.utilizadores || ''
     };
   },
 
   async getAllEventos(token) {
-    const range = `${AURATUS_CONFIG.SHEETS.EVENTOS}!A2:F`;
-    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
-    const res = await fetch(url, { headers: this.headers(token) });
-    const data = await res.json();
-    if (!data.values) return [];
-    return data.values.filter(r => r[0]).map(r => this._mapEvento(r));
+    const linhas = await this._ler(
+      this.db.from('crm_eventos').select('id, cliente_id, tipo, dia, descricao, utilizadores').order('dia').range(0, 9999),
+      'ler os eventos');
+    return linhas.map(r => this._mapEvento(r));
   },
 
   async getEventosByEmpresa(token, empresaId) {
-    const todos = await this.getAllEventos(token);
-    return todos.filter(e => e.empresa_id === empresaId);
+    const linhas = await this._ler(
+      this.db.from('crm_eventos').select('id, cliente_id, tipo, dia, descricao, utilizadores').eq('cliente_id', empresaId).order('dia'),
+      'ler os eventos');
+    return linhas.map(r => this._mapEvento(r));
+  },
+
+  _dadosEvento(evento) {
+    if (!evento.empresa_id) throw new Error('Escolhe a empresa do evento.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(evento.data || '')) throw new Error('Escolhe o dia do evento.');
+    return {
+      cliente_id: evento.empresa_id,
+      tipo: evento.tipo || 'outro',
+      dia: evento.data,
+      descricao: this._v(evento.descricao),
+      utilizadores: this._v(evento.utilizadores)
+    };
   },
 
   async addEvento(token, evento) {
-    const id = 'EV_' + Date.now();
-    const row = [
-      id,
-      evento.empresa_id || '',
-      evento.tipo || '',
-      evento.data || '',
-      evento.descricao || '',
-      evento.utilizadores || ''
-    ];
-    await this._appendRow(token, AURATUS_CONFIG.SHEETS.EVENTOS, row);
-    return id;
+    const { data, error } = await this.db.from('crm_eventos').insert(this._dadosEvento(evento)).select('id').single();
+    if (error || !data) throw this._erro(error, 'criar o evento');
+    return data.id;
   },
 
   async updateEvento(token, evento_id, evento) {
-    const range = `${AURATUS_CONFIG.SHEETS.EVENTOS}!A2:F`;
-    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
-    const res = await fetch(url, { headers: this.headers(token) });
-    const data = await res.json();
-    if (!data.values) return;
-    const rowIndex = data.values.findIndex(r => r[0] === evento_id);
-    if (rowIndex === -1) return;
-    const updateRange = `${AURATUS_CONFIG.SHEETS.EVENTOS}!A${rowIndex + 2}:F${rowIndex + 2}`;
-    const updateURL = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${updateRange}?valueInputOption=RAW`;
-    await fetch(updateURL, {
-      method: 'PUT',
-      headers: this.headers(token),
-      body: JSON.stringify({
-        range: updateRange,
-        values: [[
-          evento_id,
-          evento.empresa_id || '',
-          evento.tipo || '',
-          evento.data || '',
-          evento.descricao || '',
-          evento.utilizadores || ''
-        ]]
-      })
-    });
+    const { data, error } = await this.db.from('crm_eventos').update(this._dadosEvento(evento)).eq('id', evento_id).select('id');
+    if (error) throw this._erro(error, 'guardar o evento');
+    if (!data || !data.length) throw new Error('Não foi possível guardar o evento.');
   },
 
   async deleteEvento(token, evento_id) {
-    const rows = await this._fetchValues(token, `${AURATUS_CONFIG.SHEETS.EVENTOS}!A2:A`);
-    const idx = rows.findIndex(r => r[0] === evento_id);
-    if (idx === -1) return;
-    await this._deleteRows(token, [{ title: AURATUS_CONFIG.SHEETS.EVENTOS, rowIndex: idx }]);
+    const { data, error } = await this.db.from('crm_eventos').delete().eq('id', evento_id).select('id');
+    if (error) throw this._erro(error, 'apagar o evento');
+    if (!data || !data.length) throw new Error('Só quem criou o evento ou um administrador o pode apagar.');
   },
 
-  // ---- DESASSOCIAR ----
+  // ---- APAGAR ----
 
-  async deleteCardAssociacao(token, card_id) {
-    const range = `${AURATUS_CONFIG.SHEETS.CARDS_CRM}!A2:D`;
-    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
-    const res = await fetch(url, { headers: this.headers(token) });
-    const data = await res.json();
-    if (!data.values) return;
-    const rowIndex = data.values.findIndex(r => r[0] === card_id);
-    if (rowIndex === -1) return;
-    const gid = await this._getSheetGid(token, AURATUS_CONFIG.SHEETS.CARDS_CRM);
-    if (gid == null) return;
-    // rowIndex 0 = 1ª linha de dados (linha 2 da folha) = índice 1 (0-based, inclui cabeçalho)
-    const startIndex = rowIndex + 1;
-    const batchURL = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}:batchUpdate`;
-    await fetch(batchURL, {
-      method: 'POST',
-      headers: this.headers(token),
-      body: JSON.stringify({
-        requests: [{
-          deleteDimension: {
-            range: { sheetId: gid, dimension: 'ROWS', startIndex, endIndex: startIndex + 1 }
-          }
-        }]
-      })
-    });
-  },
-
+  // Só administradores; um cliente ARD nunca se apaga. As pessoas que só estão nesta empresa vão com ela;
+  // as que estão noutras ficam lá (função crm_apagar_empresa na Copa).
   async deleteEmpresa(token, empresa_id) {
-    const [emp, pes, pe, cards] = await Promise.all([
-      this._fetchValues(token, `${AURATUS_CONFIG.SHEETS.EMPRESAS}!A2:A`),
-      this._fetchValues(token, `${AURATUS_CONFIG.SHEETS.PESSOAS}!A2:B`),
-      this._fetchValues(token, `${AURATUS_CONFIG.SHEETS.PESSOAS_EMPRESAS}!A2:B`),
-      this._fetchValues(token, `${AURATUS_CONFIG.SHEETS.CARDS_CRM}!A2:D`)
-    ]);
-
-    // Empresas de cada pessoa = ligações (PESSOAS_EMPRESAS) + empresa principal (PESSOAS col B).
-    const empresasDaPessoa = {};
-    const addEmpresa = (pid, eid) => {
-      if (!pid) return;
-      (empresasDaPessoa[pid] = empresasDaPessoa[pid] || new Set());
-      if (eid) empresasDaPessoa[pid].add(eid);
-    };
-    pes.forEach(r => addEmpresa(r[0], r[1]));
-    pe.forEach(r => addEmpresa(r[0], r[1]));
-
-    // Pessoas órfãs: ligadas a esta empresa e a mais nenhuma.
-    const orfas = new Set();
-    Object.keys(empresasDaPessoa).forEach(pid => {
-      const set = empresasDaPessoa[pid];
-      if (set.has(empresa_id) && [...set].every(e => e === empresa_id)) orfas.add(pid);
-    });
-
-    const deletions = [];
-    emp.forEach((r, i) => { if (r[0] === empresa_id) deletions.push({ title: AURATUS_CONFIG.SHEETS.EMPRESAS, rowIndex: i }); });
-    cards.forEach((r, i) => { if (r[1] === empresa_id || orfas.has(r[2])) deletions.push({ title: AURATUS_CONFIG.SHEETS.CARDS_CRM, rowIndex: i }); });
-    pe.forEach((r, i) => { if (r[1] === empresa_id || orfas.has(r[0])) deletions.push({ title: AURATUS_CONFIG.SHEETS.PESSOAS_EMPRESAS, rowIndex: i }); });
-    pes.forEach((r, i) => { if (orfas.has(r[0])) deletions.push({ title: AURATUS_CONFIG.SHEETS.PESSOAS, rowIndex: i }); });
-
-    await this._deleteRows(token, deletions);
+    const { error } = await this.db.rpc('crm_apagar_empresa', { p_id: empresa_id });
+    if (error) throw this._erro(error, 'apagar a empresa');
   },
 
+  // Só administradores. Os cartões da pessoa ficam associados à empresa, sem pessoa.
   async deletePessoa(token, pessoa_id) {
-    const [pes, pe, cards] = await Promise.all([
-      this._fetchValues(token, `${AURATUS_CONFIG.SHEETS.PESSOAS}!A2:A`),
-      this._fetchValues(token, `${AURATUS_CONFIG.SHEETS.PESSOAS_EMPRESAS}!A2:B`),
-      this._fetchValues(token, `${AURATUS_CONFIG.SHEETS.CARDS_CRM}!A2:D`)
-    ]);
-    const deletions = [];
-    pes.forEach((r, i) => { if (r[0] === pessoa_id) deletions.push({ title: AURATUS_CONFIG.SHEETS.PESSOAS, rowIndex: i }); });
-    pe.forEach((r, i) => { if (r[0] === pessoa_id) deletions.push({ title: AURATUS_CONFIG.SHEETS.PESSOAS_EMPRESAS, rowIndex: i }); });
-    cards.forEach((r, i) => { if (r[2] === pessoa_id) deletions.push({ title: AURATUS_CONFIG.SHEETS.CARDS_CRM, rowIndex: i }); });
-    await this._deleteRows(token, deletions);
-  },
-
-  async _fetchValues(token, range) {
-    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}`;
-    const res = await fetch(url, { headers: this.headers(token) });
-    const data = await res.json();
-    return data.values || [];
-  },
-
-  // Apaga várias linhas num único batchUpdate. rowIndex é 0-based entre as linhas de
-  // dados (linha 2 da folha = índice 0). Por folha, apaga de baixo para cima para os
-  // índices não deslizarem.
-  async _deleteRows(token, deletions) {
-    if (!deletions.length) return;
-    const porFolha = {};
-    deletions.forEach(d => { (porFolha[d.title] = porFolha[d.title] || []).push(d.rowIndex); });
-
-    const requests = [];
-    for (const title of Object.keys(porFolha)) {
-      const gid = await this._getSheetGid(token, title);
-      if (gid == null) continue;
-      porFolha[title].sort((a, b) => b - a).forEach(rowIndex => {
-        const startIndex = rowIndex + 1;
-        requests.push({ deleteDimension: { range: { sheetId: gid, dimension: 'ROWS', startIndex, endIndex: startIndex + 1 } } });
-      });
-    }
-    if (!requests.length) return;
-
-    const batchURL = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}:batchUpdate`;
-    await fetch(batchURL, {
-      method: 'POST',
-      headers: this.headers(token),
-      body: JSON.stringify({ requests })
-    });
-  },
-
-  async _getSheetGid(token, title) {
-    if (!this._gids) {
-      const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}?fields=sheets(properties(sheetId,title))`;
-      const res = await fetch(url, { headers: this.headers(token) });
-      const data = await res.json();
-      this._gids = {};
-      (data.sheets || []).forEach(s => {
-        this._gids[s.properties.title] = s.properties.sheetId;
-      });
-    }
-    return this._gids[title];
-  },
-
-  // ---- UTILITÁRIO ----
-
-  async _appendRow(token, sheet, row) {
-    const range = `${sheet}!A:A`;
-    const url = `${this.baseURL}/${AURATUS_CONFIG.SHEET_ID}/values/${range}:append?valueInputOption=RAW&insertDataOption=OVERWRITE`;
-    await fetch(url, {
-      method: 'POST',
-      headers: this.headers(token),
-      body: JSON.stringify({ values: [row] })
-    });
+    const { data, error } = await this.db.from('contactos').delete().eq('id', pessoa_id).select('id');
+    if (error) throw this._erro(error, 'apagar a pessoa');
+    if (!data || !data.length) throw new Error('Só um administrador pode apagar pessoas.');
   }
 };

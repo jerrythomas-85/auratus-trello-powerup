@@ -186,7 +186,7 @@ async function handleTrocarEmpresa(token, empresaId) {
   showLoading();
   try {
     currentEmpresa = nova;
-    await SheetsAPI.saveCardAssociacao(token, currentCard.id, nova.empresa_id, currentPessoa.pessoa_id);
+    await SheetsAPI.saveCardAssociacao(token, currentCard.id, nova.empresa_id, currentPessoa.pessoa_id, currentCard.name);
     try { await SheetsAPI.addPessoaEmpresa(token, currentPessoa.pessoa_id, nova.empresa_id); } catch (e) {}
     await setBadgeLocal();
     showClientePanel(token);
@@ -527,7 +527,7 @@ async function handleGuardarEmpresaPessoa(token) {
   if (!resEmp.ok) return;
   const empresa = resEmp.empresa;
   showLoading();
-  await SheetsAPI.saveCardAssociacao(token, currentCard.id, empresa.empresa_id, currentPessoa.pessoa_id);
+  await SheetsAPI.saveCardAssociacao(token, currentCard.id, empresa.empresa_id, currentPessoa.pessoa_id, currentCard.name);
   try { await SheetsAPI.addPessoaEmpresa(token, currentPessoa.pessoa_id, empresa.empresa_id); } catch (e) {}
   await setBadgeLocal();
   showClientePanel(token);
@@ -663,23 +663,6 @@ function showFormNovaEmpresaInline(nomeInicial, token) {
           <option value="Outro">Outro</option>
         </select>
       </div>
-      <div id="form-restaurante-inline" style="display:none;">
-        <div class="form-group">
-          <label>Plano</label>
-          <select id="emp-plano">
-            <option value="Sem Avença">Sem Avença</option>
-            <option value="ARD">ARD</option>
-            <option value="ARD Pro">ARD Pro</option>
-            <option value="ARD Premium">ARD Premium</option>
-          </select>
-        </div>
-        <div id="form-data-inicio-inline" style="display:none;">
-          <div class="form-group">
-            <label>Data de Início</label>
-            <input type="date" id="emp-data-inicio" />
-          </div>
-        </div>
-      </div>
       <div class="form-group">
         <label>Email</label>
         <input type="email" id="emp-email" placeholder="email@empresa.com" />
@@ -702,15 +685,7 @@ function showFormNovaEmpresaInline(nomeInicial, token) {
     </div>
   `;
 
-  document.getElementById('emp-setor').addEventListener('change', function() {
-    document.getElementById('form-restaurante-inline').style.display =
-      this.value === 'Restaurante' ? 'block' : 'none';
-  });
-
-  document.getElementById('emp-plano').addEventListener('change', function() {
-    document.getElementById('form-data-inicio-inline').style.display =
-      this.value !== 'Sem Avença' ? 'block' : 'none';
-  });
+  // O plano deixou de se escolher aqui: as avenças criam-se na Copa (ARD).
 
   document.getElementById('btn-voltar-pesquisa-empresa').addEventListener('click', () => {
     container.style.display = 'none';
@@ -767,7 +742,7 @@ async function handleSaveNovaPessoa(token) {
   allPessoas.push(currentPessoa);
   currentEmpresa = empresa;
 
-  await SheetsAPI.saveCardAssociacao(token, currentCard.id, empresa.empresa_id, pessoa_id);
+  await SheetsAPI.saveCardAssociacao(token, currentCard.id, empresa.empresa_id, pessoa_id, currentCard.name);
   try { await SheetsAPI.addPessoaEmpresa(token, pessoa_id, empresa.empresa_id); } catch (e) {}
   await setBadgeLocal();
   showClientePanel(token);

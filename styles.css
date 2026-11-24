@@ -1043,3 +1043,21 @@ h3 {
   font-weight: 600;
   font-size: 11px;
 }
+
+/* ---- ENTRAR NA COPA (24 nov 2026) ---- */
+.copa-entrar-sobre {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: #fff;
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+}
+.copa-entrar-sobre .copa-entrar {
+  width: 100%;
+  max-width: 360px;
+}
+.copa-entrar .field-error-msg:empty {
+  display: none;
+}

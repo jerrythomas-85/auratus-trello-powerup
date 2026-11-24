@@ -1,130 +1,177 @@
+// ============================================================
+// AUTH.JS — Entrar com a conta da Copa (desde 24 nov 2026)
+// ============================================================
+// Antes: conta Google + folha TRELLO_AI_WORKSPACE. Agora: a mesma conta da Copa (copa.auratus.pt):
+// email @auratus.pt, código enviado por email e código da app de autenticação (2FA obrigatório).
+// A sessão fica guardada neste browser (dentro do Trello) e renova-se sozinha; entra-se uma vez por browser.
+// O "token" que as outras partes do Power-Up recebem é só um sinal de que há sessão: os pedidos à Copa
+// usam o cliente Supabase partilhado (Auth.supabase), com as regras de acesso da Copa (RLS).
+
+function _escAuth(v) {
+  return String(v || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 const Auth = {
 
-  _token: null,
-  _expiry: null,
-  _refresh: null,
   _t: null,
+  _espera: null,
 
-  // Recebe o objeto Trello (t) para guardar o refresh token sincronizado na conta.
+  supabase: supabase.createClient(AURATUS_CONFIG.SUPABASE_URL, AURATUS_CONFIG.SUPABASE_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'copa-crm-powerup' }
+  }),
+
   init(t) { this._t = t; },
 
-  getCookie(name) {
-    const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-    return match ? match[2] : null;
+  // Sessão com os dois fatores verificados (aal2) — sem isso a Copa não devolve nada.
+  async _sessaoValida() {
+    const { data } = await this.supabase.auth.getSession();
+    if (!data.session) return null;
+    const { data: nivel } = await this.supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (!nivel || nivel.currentLevel !== 'aal2') return null;
+    return data.session.access_token;
   },
 
-  setCookie(name, value, maxAge) {
-    document.cookie = `${name}=${value};max-age=${maxAge};path=/;SameSite=None;Secure`;
-  },
+  // Compatibilidade: devolve logo o que houver (sem pedidos à rede).
+  getToken() { return null; },
 
-  // Access token válido (com margem de 60s) — memória ou cookie.
-  getToken() {
-    if (this._token && this._expiry && Date.now() < this._expiry - 60000) {
-      return this._token;
-    }
-    const token = this.getCookie('auratus_token');
-    const expiry = this.getCookie('auratus_expiry');
-    if (token && expiry && Date.now() < parseInt(expiry) - 60000) {
-      this._token = token;
-      this._expiry = parseInt(expiry);
-      return token;
-    }
-    return null;
-  },
-
-  async getRefreshToken() {
-    if (this._refresh) return this._refresh;
-    const c = this.getCookie('auratus_refresh');
-    if (c) { this._refresh = c; return c; }
-    if (this._t) {
-      try {
-        const r = await this._t.get('member', 'private', 'auratusRefresh');
-        if (r) { this._refresh = r; return r; }
-      } catch (e) {}
-    }
-    return null;
-  },
-
-  async saveRefreshToken(refresh) {
-    if (!refresh) return;
-    this._refresh = refresh;
-    this.setCookie('auratus_refresh', refresh, 60 * 60 * 24 * 365);
-    if (this._t) {
-      try { await this._t.set('member', 'private', 'auratusRefresh', refresh); } catch (e) {}
-    }
-  },
-
-  _guardarAccessToken(accessToken, expiresIn) {
-    const maxAge = parseInt(expiresIn) || 3600;
-    const expiry = Date.now() + maxAge * 1000;
-    this._token = accessToken;
-    this._expiry = expiry;
-    this.setCookie('auratus_token', accessToken, maxAge);
-    this.setCookie('auratus_expiry', expiry, maxAge);
-  },
-
-  // Renova o access token a partir do refresh token, sem qualquer interação.
+  // Sem qualquer interação: sessão guardada (renovada se preciso) ou null.
   async refreshSilently() {
-    const refresh = await this.getRefreshToken();
-    if (!refresh) return null;
-    try {
-      const res = await fetch('/api/auth/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refresh })
-      });
-      const data = await res.json();
-      if (!res.ok || !data.access_token) return null;
-      this._guardarAccessToken(data.access_token, data.expires_in);
-      return data.access_token;
-    } catch (e) {
-      return null;
-    }
+    try { return await this._sessaoValida(); } catch (e) { return null; }
   },
 
-  // Login com popup (fluxo de código + acesso offline). Só é preciso uma vez.
-  login() {
-    return new Promise((resolve, reject) => {
-      const params = new URLSearchParams({
-        client_id: AURATUS_CONFIG.CLIENT_ID,
-        redirect_uri: AURATUS_CONFIG.REDIRECT_URI,
-        response_type: 'code',
-        access_type: 'offline',
-        prompt: 'consent',
-        scope: AURATUS_CONFIG.SCOPES
-      });
+  // Sessão pronta a usar; se não houver, mostra o formulário de entrada e espera.
+  async ensureToken() {
+    const token = await this.refreshSilently();
+    if (token) return token;
+    if (!this._espera) {
+      this._espera = new Promise(resolve => this._mostrarEntrada(resolve)).finally(() => { this._espera = null; });
+    }
+    return this._espera;
+  },
 
-      const authURL = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
-      const popup = window.open(authURL, 'oauth', 'width=500,height=600');
+  async sair() {
+    await this.supabase.auth.signOut();
+  },
 
-      if (!popup) {
-        reject(new Error('Popup bloqueado. Permite popups para este site.'));
+  // ---- Formulário de entrada ----
+
+  _caixa() {
+    let caixa = document.getElementById('copa-entrar');
+    if (caixa) return caixa;
+    caixa = document.createElement('div');
+    caixa.id = 'copa-entrar';
+    const painel = document.getElementById('crm-panel');
+    if (painel) {
+      painel.innerHTML = '';
+      painel.appendChild(caixa);
+    } else {
+      caixa.className = 'copa-entrar-sobre';
+      document.body.appendChild(caixa);
+    }
+    return caixa;
+  },
+
+  _fechar() {
+    const caixa = document.getElementById('copa-entrar');
+    if (caixa) caixa.remove();
+  },
+
+  _mostrarEntrada(resolve) {
+    const caixa = this._caixa();
+    let email = '';
+
+    const passoEmail = (erro) => {
+      caixa.innerHTML = `
+        <div class="section copa-entrar">
+          <h2>Entrar na Copa</h2>
+          <p class="sub">O CRM agora vive na Copa. Entra com a tua conta da Copa (só é preciso uma vez neste browser).</p>
+          <div class="form-group"><label>Email</label>
+            <input type="email" id="copa-email" placeholder="nome@auratus.pt" value="${_escAuth(email)}" autocomplete="email" /></div>
+          <span class="field-error-msg">${_escAuth(erro)}</span>
+          <div class="form-actions"><button id="copa-enviar" class="btn-primary">Enviar código</button></div>
+        </div>`;
+      const enviar = async () => {
+        email = document.getElementById('copa-email').value.trim().toLowerCase();
+        if (!email.endsWith('@auratus.pt')) return passoEmail('Usa o teu email @auratus.pt.');
+        document.getElementById('copa-enviar').disabled = true;
+        // shouldCreateUser: false — só entra quem já tem conta na Copa (igual ao ecrã de entrada da Copa).
+        await this.supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+        passoCodigo();
+      };
+      document.getElementById('copa-enviar').addEventListener('click', enviar);
+      document.getElementById('copa-email').addEventListener('keydown', e => { if (e.key === 'Enter') enviar(); });
+      document.getElementById('copa-email').focus();
+    };
+
+    const passoCodigo = (erro) => {
+      caixa.innerHTML = `
+        <div class="section copa-entrar">
+          <h2>Código do email</h2>
+          <p class="sub">Se ${_escAuth(email)} tiver conta na Copa, recebeu um código. Escreve-o aqui.</p>
+          <div class="form-group"><label>Código</label>
+            <input type="text" id="copa-codigo" inputmode="numeric" autocomplete="one-time-code" /></div>
+          <span class="field-error-msg">${_escAuth(erro)}</span>
+          <div class="form-actions">
+            <button id="copa-voltar" class="btn-secondary">Voltar</button>
+            <button id="copa-confirmar" class="btn-primary">Confirmar</button>
+          </div>
+        </div>`;
+      const confirmar = async () => {
+        document.getElementById('copa-confirmar').disabled = true;
+        const token = document.getElementById('copa-codigo').value.trim();
+        const { error } = await this.supabase.auth.verifyOtp({ email, token, type: 'email' });
+        if (error) return passoCodigo('Código inválido ou expirado. Confirma ou volta atrás e pede outro.');
+        passoDoisFatores();
+      };
+      document.getElementById('copa-voltar').addEventListener('click', () => passoEmail());
+      document.getElementById('copa-confirmar').addEventListener('click', confirmar);
+      document.getElementById('copa-codigo').addEventListener('keydown', e => { if (e.key === 'Enter') confirmar(); });
+      document.getElementById('copa-codigo').focus();
+    };
+
+    const passoDoisFatores = async (erro) => {
+      const { data: fatores } = await this.supabase.auth.mfa.listFactors();
+      const fator = ((fatores && fatores.totp) || []).find(f => f.status === 'verified');
+      if (!fator) {
+        await this.supabase.auth.signOut();
+        caixa.innerHTML = `
+          <div class="section copa-entrar">
+            <h2>Falta a app de autenticação</h2>
+            <p class="sub">Entra primeiro em <a href="${AURATUS_CONFIG.COPA_URL}" target="_blank" rel="noreferrer">copa.auratus.pt</a>
+            para configurar a app de autenticação (dois fatores). Depois volta aqui.</p>
+            <div class="form-actions"><button id="copa-recomecar" class="btn-primary">Já configurei</button></div>
+          </div>`;
+        document.getElementById('copa-recomecar').addEventListener('click', () => passoEmail());
         return;
       }
+      caixa.innerHTML = `
+        <div class="section copa-entrar">
+          <h2>App de autenticação</h2>
+          <p class="sub">Escreve o código de 6 dígitos da app de autenticação (o mesmo que usas na Copa).</p>
+          <div class="form-group"><label>Código da app</label>
+            <input type="text" id="copa-totp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" /></div>
+          <span class="field-error-msg">${_escAuth(erro)}</span>
+          <div class="form-actions"><button id="copa-verificar" class="btn-primary">Entrar</button></div>
+        </div>`;
+      const verificar = async () => {
+        document.getElementById('copa-verificar').disabled = true;
+        const code = document.getElementById('copa-totp').value.replace(/\s/g, '');
+        const { error } = await this.supabase.auth.mfa.challengeAndVerify({ factorId: fator.id, code });
+        if (error) return passoDoisFatores('Código errado. Espera pelo seguinte e tenta outra vez.');
+        const token = await this._sessaoValida();
+        if (!token) return passoDoisFatores('Não foi possível entrar. Tenta outra vez.');
+        this._fechar();
+        resolve(token);
+      };
+      document.getElementById('copa-verificar').addEventListener('click', verificar);
+      document.getElementById('copa-totp').addEventListener('keydown', e => { if (e.key === 'Enter') verificar(); });
+      document.getElementById('copa-totp').focus();
+    };
 
-      const pollInterval = setInterval(() => {
-        try {
-          if (popup.closed) {
-            clearInterval(pollInterval);
-            // auth-callback.html escreveu os cookies (token/expiry/refresh).
-            setTimeout(async () => {
-              const refresh = this.getCookie('auratus_refresh');
-              if (refresh) await this.saveRefreshToken(refresh);
-              const token = this.getToken();
-              if (token) resolve(token);
-              else reject(new Error('Autenticação cancelada ou falhou.'));
-            }, 400);
-          }
-        } catch (e) {}
-      }, 500);
+    // Já com código do email mas sem o segundo fator (ex.: fechou a janela a meio)?
+    this.supabase.auth.getSession().then(({ data }) => {
+      if (data.session) passoDoisFatores();
+      else passoEmail();
     });
-  },
-
-  async ensureToken() {
-    const token = this.getToken();
-    if (token) return token;
-    const refreshed = await this.refreshSilently();
-    if (refreshed) return refreshed;
-    return await this.login();
   }
 };
