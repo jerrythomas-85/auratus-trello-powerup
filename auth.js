@@ -86,7 +86,7 @@ const Auth = {
         <div class="form-actions"><button id="copa-abrir" class="btn-primary">Entrar na Copa</button></div>
       </div>`;
     document.getElementById('copa-abrir').addEventListener('click', () => {
-      if (this._t) this._t.popup({ title: 'Entrar na Copa', url: './sidebar.html', height: 600 });
+      if (this._t) this._t.modal({ title: 'Entrar na Copa', url: './sidebar.html', height: 560, fullscreen: false });
     });
     const espera = setInterval(async () => {
       const token = await this.refreshSilently();
