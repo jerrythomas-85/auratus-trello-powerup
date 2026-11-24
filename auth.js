@@ -169,7 +169,7 @@ const Auth = {
       caixa.innerHTML = `
         <div class="section copa-entrar">
           <h2>App de autenticação</h2>
-          <p class="sub">Escreve o código de 6 dígitos da app de autenticação (o mesmo que usas na Copa).</p>
+          <p class="sub">Escreve o código de 6 números da app Palavras-passe do Mac (ou da tua app de autenticação), o mesmo que usas na Copa.</p>
           <div class="form-group"><label>Código da app</label>
             <input type="text" id="copa-totp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" /></div>
           <span class="field-error-msg">${_escAuth(erro)}</span>
