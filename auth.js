@@ -76,7 +76,29 @@ const Auth = {
     if (caixa) caixa.remove();
   },
 
+  // No painel pequeno dentro do cartão não cabe o formulário: um botão abre a janela do CRM (onde se entra)
+  // e este painel fica à espera da sessão (partilhada por todas as janelas do Power-Up neste browser).
+  _mostrarEntradaEmbutida(resolve) {
+    const caixa = this._caixa();
+    caixa.innerHTML = `
+      <div class="section copa-entrar">
+        <p class="hint">O CRM agora vive na Copa. Entra uma vez com a tua conta da Copa.</p>
+        <div class="form-actions"><button id="copa-abrir" class="btn-primary">Entrar na Copa</button></div>
+      </div>`;
+    document.getElementById('copa-abrir').addEventListener('click', () => {
+      if (this._t) this._t.popup({ title: 'Entrar na Copa', url: './sidebar.html', height: 600 });
+    });
+    const espera = setInterval(async () => {
+      const token = await this.refreshSilently();
+      if (!token) return;
+      clearInterval(espera);
+      this._fechar();
+      resolve(token);
+    }, 2000);
+  },
+
   _mostrarEntrada(resolve) {
+    if (window.CRM_EMBEDDED) return this._mostrarEntradaEmbutida(resolve);
     const caixa = this._caixa();
     let email = '';
 
