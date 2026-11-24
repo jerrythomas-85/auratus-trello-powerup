@@ -4,13 +4,13 @@
 // O nome (SheetsAPI) e as funções ficaram iguais para o resto do Power-Up não mudar, mas já não há
 // folha: tudo se lê e grava na Copa (Supabase), com a sessão de quem está a usar (Auth.supabase).
 // As regras de acesso são as da Copa: toda a equipa vê, cria e altera empresas, pessoas, ligações,
-// cartões e eventos; apagar empresas e pessoas só administradores; apagar um evento, quem o criou ou um
-// administrador; num cliente ARD, o nome e as notas só um administrador muda; um cliente ARD nunca se apaga.
+// e cartões; apagar empresas e pessoas só administradores; num cliente ARD, o nome e as notas só um administrador muda; um cliente ARD nunca se apaga.
 // As avenças gerem-se na Copa (ARD): aqui só se leem.
 // Ids: os da Copa (uuid). O parâmetro "token" ficou só por compatibilidade.
 //
 // Correspondência com a Copa: empresa = clientes; pessoa = contactos (empresa_id = empresa principal);
-// pessoa ↔ empresa = contactos_empresas; associação de cartão = crm_cartoes; evento = crm_eventos.
+// pessoa ↔ empresa = contactos_empresas; associação de cartão = crm_cartoes. Os eventos saíram do Power-Up
+// a 24 nov 2026 (decisão do Jerry): estão no calendário e no cronograma das empresas na Copa.
 
 const SheetsAPI = {
 
@@ -274,63 +274,6 @@ const SheetsAPI = {
 
   async updateAvenca() {
     throw new Error('As avenças alteram-se na Copa (ARD → ficha do cliente).');
-  },
-
-  // ---- EVENTOS ----
-
-  _mapEvento(r) {
-    return {
-      evento_id: r.id,
-      empresa_id: r.cliente_id || '',
-      tipo: r.tipo || '',
-      data: r.dia || '',
-      descricao: r.descricao || '',
-      utilizadores: r.utilizadores || ''
-    };
-  },
-
-  async getAllEventos(token) {
-    const linhas = await this._ler(
-      this.db.from('crm_eventos').select('id, cliente_id, tipo, dia, descricao, utilizadores').order('dia').range(0, 9999),
-      'ler os eventos');
-    return linhas.map(r => this._mapEvento(r));
-  },
-
-  async getEventosByEmpresa(token, empresaId) {
-    const linhas = await this._ler(
-      this.db.from('crm_eventos').select('id, cliente_id, tipo, dia, descricao, utilizadores').eq('cliente_id', empresaId).order('dia'),
-      'ler os eventos');
-    return linhas.map(r => this._mapEvento(r));
-  },
-
-  _dadosEvento(evento) {
-    if (!evento.empresa_id) throw new Error('Escolhe a empresa do evento.');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(evento.data || '')) throw new Error('Escolhe o dia do evento.');
-    return {
-      cliente_id: evento.empresa_id,
-      tipo: evento.tipo || 'outro',
-      dia: evento.data,
-      descricao: this._v(evento.descricao),
-      utilizadores: this._v(evento.utilizadores)
-    };
-  },
-
-  async addEvento(token, evento) {
-    const { data, error } = await this.db.from('crm_eventos').insert(this._dadosEvento(evento)).select('id').single();
-    if (error || !data) throw this._erro(error, 'criar o evento');
-    return data.id;
-  },
-
-  async updateEvento(token, evento_id, evento) {
-    const { data, error } = await this.db.from('crm_eventos').update(this._dadosEvento(evento)).eq('id', evento_id).select('id');
-    if (error) throw this._erro(error, 'guardar o evento');
-    if (!data || !data.length) throw new Error('Não foi possível guardar o evento.');
-  },
-
-  async deleteEvento(token, evento_id) {
-    const { data, error } = await this.db.from('crm_eventos').delete().eq('id', evento_id).select('id');
-    if (error) throw this._erro(error, 'apagar o evento');
-    if (!data || !data.length) throw new Error('Só quem criou o evento ou um administrador o pode apagar.');
   },
 
   // ---- APAGAR ----
