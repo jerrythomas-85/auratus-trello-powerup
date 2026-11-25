@@ -72,6 +72,8 @@ const SheetsAPI = {
     const linhas = await this._ler(
       this.db.from('clientes')
         .select('id, nome, localidade, distrito, setor, email, telefone, notas, cor, avencas(plano, data_inicio, estado)')
+        // Leads não qualificados do funil ARD da Copa ficam fora das listas (decisão do Jerry, 25 nov 2026).
+        .is('nao_qualificado_ate', null)
         .order('nome').range(0, 4999),
       'ler as empresas');
     return linhas.map(c => this._mapEmpresa(c));
